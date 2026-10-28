@@ -1,4 +1,4 @@
-# PrintPal 变更记录
+﻿# PrintPal 变更记录
 
 本项目按阶段推进；每个阶段结束更新本文件、`docs/architecture.md`、`docs/test-plan.md`。
 
@@ -192,6 +192,8 @@
   - 1.0.1 服务/队列 5p×2 彩色双面 **¥6.40**，PDF 535,174 B；
   - WixUI 向导日志确认所有页面；
   - 98 测试全绿；
+- 修复：MSI Repair/升级时队列已是 WSD 则跳过重建；快捷方式写公共桌面+当前用户桌面+开始菜单。
+- 新增：`scripts/test/Run-PrintPalTests.ps1` 单入口聚合测试报告；阶段总结。
 - 已知：MSI 未签名；升级失败后恢复旧版本未覆盖；共享 SQLite/Users Modify。
 
 ---
@@ -211,3 +213,5 @@
 - 计价：按“每份”先算双面/单面张数，再乘份数。
 - 文档/证据变更：同步更新 `docs/architecture.md`、`docs/test-plan.md`、本文件。
 - `参考资料/` 只读；不提交 `artifacts/`、`dist/`、`received/`。
+
+

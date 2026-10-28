@@ -1,4 +1,4 @@
-# PrintPal 打印助手
+﻿# PrintPal 打印助手
 
 PrintPal 是一个 Windows 10 / Windows 11 的打印助手：用户在 WPS / Office / 记事本中打印到
 **“PrintPal 虚拟打印机”**，PrintPal 捕获打印参数，按纸张/颜色/单双面/页数/份数计价，并按路由规则
@@ -97,7 +97,8 @@ dotnet test PrintPal.sln -c Debug
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install-PrintPalQueue.ps1
 
 # 4. 打印 5 页 x 2 份，A4 彩色双面
-.\tools\PrintPal.PrintProbe\bin\Debug\net10.0-windows\PrintPal.PrintProbe.exe `
+.\tools\PrintPal.PrintProbe\bin\Debug
+et10.0-windows\PrintPal.PrintProbe.exe `
   --printer "PrintPal Virtual Printer" --pages 5 --copies 2 --duplex long --color color --paper A4 `
   --name "P2 E2E 5p x2 duplex color A4"
 ```
@@ -222,7 +223,7 @@ msiexec.exe /x .\dist\PrintPal-1.0.1-win-x64\PrintPal-1.0.1-x64.msi /qn /noresta
 - [PrintPal-1.0.1-x64.msi](dist/PrintPal-1.0.1-win-x64/PrintPal-1.0.1-x64.msi)（约 75.9 MB，未签名）
 - [PrintPal-1.0.1-win-x64.zip](dist/PrintPal-1.0.1-win-x64.zip)（约 164.8 MB）
 
-完整说明见 [p7-service-msi.md](docs/p7-service-msi.md)、
+完整说明见 [p7-service-msi.md](docs/p7-service-msi.md)、[阶段总结](docs/STAGE-SUMMARY-2026-10-28.md)、
 [ADR-007](docs/decisions/ADR-007-windows-service.md)、
 [ADR-008](docs/decisions/ADR-008-msi-unsigned.md)。
 
@@ -295,7 +296,9 @@ Windows 10/11 都用 `Create-Job + Send-Document`，文档为 PDF；`Send-Docume
 - [运行手册](docs/runbook.md)
 - [测试计划与结果](docs/test-plan.md)
 - [P6 验收报告](docs/acceptance.md)
+- [阶段总结 2026-10-28](docs/STAGE-SUMMARY-2026-10-28.md)
 - [P7 服务/MSI](docs/p7-service-msi.md)
+- [测试 runner](scripts/test/Run-PrintPalTests.ps1)
 - [ADR-007 Windows 服务](docs/decisions/ADR-007-windows-service.md)
 - [ADR-008 MSI/unsigned](docs/decisions/ADR-008-msi-unsigned.md)
 - [变更记录](docs/CHANGELOG.md)
@@ -309,3 +312,5 @@ Windows 10/11 都用 `Create-Job + Send-Document`，文档为 PDF；`Send-Docume
 - [P0 环境记录](docs/spikes/environment.md)
 - [Windows 10 P0 验证包](dist/p0-win10/README-Win10.md)
 - `参考资料/` 下的 PSA 调研文档（只读）
+
+

@@ -66,10 +66,25 @@ Write-Host ""
 
 Push-Location $Root
 try {
-    & dotnet test $sln -c $Configuration --nologo `
-        --logger "trx;LogFileName=printpal.trx" `
-        --results-directory $trxDir
-    $testExit = $LASTEXITCODE
+    # Build once, then run each test project with its own TRX file. Using a single
+    # TRX filename for the solution makes VSTest overwrite the previous project's
+    # result (only the last project would be reported).
+    & dotnet build $sln -c $Configuration --nologo
+    if ($LASTEXITCODE -ne 0) { $testExit = $LASTEXITCODE }
+
+    $testProjects = @(Get-ChildItem (Join-Path $Root 'tests') -Filter '*.csproj' -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object FullName)
+
+    foreach ($project in $testProjects) {
+        $projectName = [IO.Path]::GetFileNameWithoutExtension($project.Name)
+        $trxName = "$projectName.trx"
+        Write-Host "Testing $projectName ..."
+
+        & dotnet test $project.FullName -c $Configuration --no-build --nologo `
+            --logger "trx;LogFileName=$trxName" `
+            --results-directory $trxDir
+        if ($LASTEXITCODE -ne 0) { $testExit = 1 }
+    }
 } finally {
     Pop-Location
 }
