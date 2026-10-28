@@ -101,7 +101,7 @@ if (Test-Path $installerSource) {
 
 $docsOutput = Join-Path $Output 'docs'
 New-Item -ItemType Directory -Force -Path $docsOutput | Out-Null
-foreach ($doc in @('README.md', 'docs\architecture.md', 'docs\installer.md', 'docs\p7-service-msi.md', 'docs\runbook.md', 'docs\ui.md', 'docs\test-plan.md', 'docs\acceptance.md', 'docs\CHANGELOG.md')) {
+foreach ($doc in @('README.md', 'docs\architecture.md', 'docs\installer.md', 'docs\p7-service-msi.md', 'docs\runbook.md', 'docs\ui.md', 'docs\test-plan.md', 'docs\acceptance.md', 'docs\CHANGELOG.md', 'docs\manual-test-1.0.1.md', 'docs\STAGE-SUMMARY-2026-10-28.md')) {
     $source = Join-Path $Root $doc
     if (Test-Path $source) {
         Copy-Item $source $docsOutput -Force
@@ -176,4 +176,5 @@ if ($Zip) {
     $zipInfo = Get-Item $zipPath
     Write-Host "  Zip     : $($zipInfo.Length) bytes"
 }
+
 

@@ -161,6 +161,7 @@
   - **未签名**：可安装/卸载；无证书；SmartScreen 可能提示；
 - 关键修复：SYSTEM 下 `Add-Printer -IppURL` 会建 HTTP 端口，丢失
   copies/sides/color；改为用户 impersonation + 清理副本 + WSD 强制；
+- 图标：新增 PrintPal.ico（多尺寸），嵌入 App/Service exe、WPF 窗口、托盘、快捷方式和 ARP DisplayIcon；
 - 验证：
   - 服务模式 5p×2 彩色双面 → **¥6.40** → FakePrinter 535,998 B；
   - MSI 安装 → 服务 Running → WSD 队列 → 5p×2 → **¥6.40**，PDF 537,334 B；
@@ -188,6 +189,7 @@
   - 无效 `PRINTPAL_QUEUE_URL` 触发 1603；服务/程序/队列回滚，数据保留；
   - 新增 `RollbackQueue` CA；队列安装条件支持修复；
   - 版本从 0.6.x/1.0.0 程序集升到 1.0.1，避免 MSI 文件版本降级漏拷贝；
+- 图标：新增 PrintPal.ico（多尺寸），嵌入 App/Service exe、WPF 窗口、托盘、快捷方式和 ARP DisplayIcon；
 - 验证：
   - 1.0.1 服务/队列 5p×2 彩色双面 **¥6.40**，PDF 535,174 B；
   - WixUI 向导日志确认所有页面；
@@ -213,5 +215,7 @@
 - 计价：按“每份”先算双面/单面张数，再乘份数。
 - 文档/证据变更：同步更新 `docs/architecture.md`、`docs/test-plan.md`、本文件。
 - `参考资料/` 只读；不提交 `artifacts/`、`dist/`、`received/`。
+
+
 
 

@@ -1,4 +1,4 @@
-<Window x:Class="PrintPal.App.PrinterEditWindow"
+﻿<Window x:Class="PrintPal.App.PrinterEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="打印机"
@@ -6,7 +6,7 @@
         Width="520"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False" Icon="pack://application:,,,/Assets/PrintPal.ico">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -78,3 +78,4 @@
         </StackPanel>
     </Grid>
 </Window>
+

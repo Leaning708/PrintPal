@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
@@ -112,7 +112,9 @@ public partial class MainWindow : Window
     {
         _trayIcon = new WinForms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = (Environment.ProcessPath is { } processPath
+                ? System.Drawing.Icon.ExtractAssociatedIcon(processPath)
+                : null) ?? System.Drawing.SystemIcons.Application,
             Text = "PrintPal 打印助手",
             Visible = true,
         };

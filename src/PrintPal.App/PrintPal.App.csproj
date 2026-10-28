@@ -17,6 +17,10 @@
     <Using Remove="System.Windows.Forms" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Assets\PrintPal.ico" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -26,6 +30,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>PrintPal.App</AssemblyName>
     <RootNamespace>PrintPal.App</RootNamespace>
+    <ApplicationIcon>Assets\PrintPal.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-<Window x:Class="PrintPal.App.MainWindow"
+﻿<Window x:Class="PrintPal.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PrintPal 打印助手"
@@ -6,7 +6,7 @@
         Height="880"
         MinWidth="1120"
         MinHeight="720"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen" Icon="pack://application:,,,/Assets/PrintPal.ico">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -330,3 +330,4 @@
         </Border>
     </Grid>
 </Window>
+
