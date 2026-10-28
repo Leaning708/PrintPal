@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+dist/
+artifacts/
+TestResults/
+*.msi
+*.zip
+*.wixpdb
+*.wixobj
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs / local runtime
+*.log
+*.tmp
+*.bak
+.vsconfig
+
+# Reference material (read-only, not part of the product)
+参考资料/
+
+# OS
+Thumbs.db
+.DS_Store

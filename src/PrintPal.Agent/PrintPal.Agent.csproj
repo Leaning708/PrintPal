@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\PrintPal.Core\PrintPal.Core.csproj" />
+    <ProjectReference Include="..\PrintPal.Ipp\PrintPal.Ipp.csproj" />
+    <ProjectReference Include="..\PrintPal.Capture\PrintPal.Capture.csproj" />
+    <ProjectReference Include="..\PrintPal.Storage\PrintPal.Storage.csproj" />
+    <ProjectReference Include="..\PrintPal.Forwarding\PrintPal.Forwarding.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

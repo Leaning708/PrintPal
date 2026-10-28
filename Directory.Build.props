@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <PrintPalVersion Condition="'$(PrintPalVersion)' == ''">1.0.1</PrintPalVersion>
+    <Version>$(PrintPalVersion)</Version>
+    <AssemblyVersion>$(PrintPalVersion).0</AssemblyVersion>
+    <FileVersion>$(PrintPalVersion).0</FileVersion>
+    <InformationalVersion>$(PrintPalVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>
+
