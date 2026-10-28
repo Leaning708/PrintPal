@@ -296,7 +296,7 @@ Windows 10/11 都用 `Create-Job + Send-Document`，文档为 PDF；`Send-Docume
 - [运行手册](docs/runbook.md)
 - [测试计划与结果](docs/test-plan.md)
 - [P6 验收报告](docs/acceptance.md)
-- [阶段总结 2026-10-28](docs/STAGE-SUMMARY-2026-10-28.md)
+- [人工测试指南 1.0.1](docs/manual-test-1.0.1.md)\n- [阶段总结 2026-10-28](docs/STAGE-SUMMARY-2026-10-28.md)
 - [P7 服务/MSI](docs/p7-service-msi.md)
 - [测试 runner](scripts/test/Run-PrintPalTests.ps1)
 - [ADR-007 Windows 服务](docs/decisions/ADR-007-windows-service.md)
@@ -312,5 +312,6 @@ Windows 10/11 都用 `Create-Job + Send-Document`，文档为 PDF；`Send-Docume
 - [P0 环境记录](docs/spikes/environment.md)
 - [Windows 10 P0 验证包](dist/p0-win10/README-Win10.md)
 - `参考资料/` 下的 PSA 调研文档（只读）
+
 
 
