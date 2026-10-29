@@ -4,6 +4,42 @@ using PrintPal.Core;
 
 namespace PrintPal.App;
 
+public sealed class BillingTagRow
+{
+    public BillingTagRow(BillingTag tag)
+    {
+        Tag = tag;
+    }
+
+    public BillingTag Tag { get; }
+
+    public string Name => Tag.Name;
+
+    public int SequenceNumber => Tag.SequenceNumber;
+}
+
+public sealed class BillingSessionRow
+{
+    public BillingSessionRow(BillingSession session)
+    {
+        Session = session;
+    }
+
+    public BillingSession Session { get; }
+
+    public string ClosedAtText => Session.ClosedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "";
+
+    public string TagName => Session.TagNameSnapshot;
+
+    public int JobCount => Session.JobCount;
+
+    public int TotalPages => Session.TotalPages;
+
+    public string AmountText => Money.FormatCents(Session.AmountCents);
+
+    public string Note => Session.Note ?? "";
+}
+
 public sealed class JobRow
 {
     private readonly IReadOnlyDictionary<Guid, string> _printerNames;

@@ -1,4 +1,4 @@
-# PrintPal 阶段性总结（2026-10-28，1.0.1）
+﻿# PrintPal 阶段性总结（2026-10-28，1.0.1）
 
 > 用途：阶段收口、交接、后续迭代基线
 > 当前产物：Windows 服务 + unsigned MSI（WixUI 向导）
@@ -8,7 +8,7 @@
 
 ## 1. 项目目标
 
-PrintPal 是 Windows 打印助手：
+PrintPal 是 Windows 打印计费工具：
 
 - 虚拟打印机捕获 WPS / Office / PrintProbe 等应用的打印任务；
 - 解析纸张、彩色/黑白、单双面、页数、份数；
@@ -168,3 +168,4 @@ MSI 的问题主要不是 WiX 本身，而是：
 - [测试计划](test-plan.md)
 - [ADR-007](decisions/ADR-007-windows-service.md)
 - [ADR-008](decisions/ADR-008-msi-unsigned.md)
+

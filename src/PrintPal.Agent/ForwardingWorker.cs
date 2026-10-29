@@ -138,6 +138,14 @@ public sealed class ForwardingWorker : IAsyncDisposable
             return;
         }
 
+        // Legacy/rows without billing attribution must never be forwarded into a
+        // new tag session; the operator can inspect them from the legacy view.
+        if (job.BillingTagId is null || job.BillingSessionId is null)
+        {
+            Log($"job {job.Id} has no billing tag/session; forwarding skipped");
+            return;
+        }
+
         if (job.TargetPrinterId is not Guid printerId)
         {
             await MarkFailedAsync(job, "没有目标打印机", cancellationToken).ConfigureAwait(false);

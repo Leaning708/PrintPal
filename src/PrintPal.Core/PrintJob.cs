@@ -74,6 +74,15 @@ public sealed class PrintJob
 
     public string? StatusReason { get; set; }
 
+    /// <summary>Current billing tag at capture time; null only for legacy rows.</summary>
+    public Guid? BillingTagId { get; set; }
+
+    /// <summary>Open billing session at capture time; null only for legacy rows.</summary>
+    public Guid? BillingSessionId { get; set; }
+
+    /// <summary>Tag name snapshot for history.</summary>
+    public string? TagNameSnapshot { get; set; }
+
     public bool IsEstimated { get; set; }
 
     public bool IsAdjusted { get; set; }

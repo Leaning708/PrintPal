@@ -1,6 +1,6 @@
-﻿# PrintPal 打印助手
+# PrintPal
 
-PrintPal 是一个 Windows 10 / Windows 11 的打印助手：用户在 WPS / Office / 记事本中打印到
+PrintPal 是一个 Windows 10 / Windows 11 的打印计费工具：用户在 WPS / Office / 记事本中打印到
 **“PrintPal 虚拟打印机”**，PrintPal 捕获打印参数，按纸张/颜色/单双面/页数/份数计价，并按路由规则
 转发到真实打印机。开发环境没有真实打印机，因此附带一个可多实例部署的 **FakePrinter** 来模拟
 真实打印机的 IPP / Raw 9100 接口。
@@ -227,6 +227,19 @@ msiexec.exe /x .\dist\PrintPal-1.0.1-win-x64\PrintPal-1.0.1-x64.msi /qn /noresta
 [ADR-007](docs/decisions/ADR-007-windows-service.md)、
 [ADR-008](docs/decisions/ADR-008-msi-unsigned.md)。
 
+## 标签计费 / 三模式（2026-10-29）
+
+- 默认标签：`标签1`、`标签2`……，店主可改名；
+- 每个标签独立未结账会话，结账自动归档并切到下一个/新建；
+- 完整 / 简洁 / 极简三种模式：
+  - 完整：配置 + 文件列表 + 历史；
+  - 简洁：文件列表 + 新建标签 + 结账；
+  - 极简：仅金额/当前标签/结账，默认右下角；
+- 置顶开关按模式独立保存，可关闭；
+- 主界面不再展示全店今日/本周/本月统计；
+- 本地快速验证（不构建 MSI）见 [本地测试流程](docs/manual-test-1.0.1.md) 的更新版本；
+- 自动化测试当前 **102**。
+
 清理：
 
 ```powershell
@@ -313,6 +326,7 @@ Windows 10/11 都用 `Create-Job + Send-Document`，文档为 PDF；`Send-Docume
 - [P0 环境记录](docs/spikes/environment.md)
 - [Windows 10 P0 验证包](dist/p0-win10/README-Win10.md)
 - `参考资料/` 下的 PSA 调研文档（只读）
+
 
 
 

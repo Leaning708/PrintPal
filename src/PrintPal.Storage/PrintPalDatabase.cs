@@ -17,7 +17,8 @@ public sealed class PrintPalDatabase
         ColorMode, DuplexMode, Copies, PageCount, SimplexPriceCents, DuplexPriceCents,
         DuplexSheetsPerCopy, SimplexSheetsPerCopy, TotalDuplexSheets, TotalSimplexSheets,
         TotalSheets, UnitPriceCents, AmountCents, PricingJson, TargetPrinterId, Status,
-        StatusReason, IsEstimated, IsAdjusted, IsDeleted, RawAttributesJson,
+        StatusReason, BillingTagId, BillingSessionId, TagNameSnapshot,
+        IsEstimated, IsAdjusted, IsDeleted, RawAttributesJson,
         PricedAtUtc, ForwardedAtUtc
         """;
 
@@ -146,6 +147,47 @@ public sealed class PrintPalDatabase
                 Key TEXT PRIMARY KEY,
                 Value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS BillingTags (
+                Id TEXT PRIMARY KEY,
+                SequenceNumber INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                Note TEXT NULL,
+                CreatedAtUtc TEXT NOT NULL,
+                IsArchived INTEGER NOT NULL,
+                IsDeleted INTEGER NOT NULL,
+                ArchivedAtUtc TEXT NULL,
+                DeletedAtUtc TEXT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_BillingTags_Sequence ON BillingTags(SequenceNumber);
+
+            CREATE TABLE IF NOT EXISTS BillingSessions (
+                Id TEXT PRIMARY KEY,
+                BillingTagId TEXT NOT NULL,
+                TagNameSnapshot TEXT NOT NULL,
+                OpenedAtUtc TEXT NOT NULL,
+                ClosedAtUtc TEXT NULL,
+                Status TEXT NOT NULL,
+                JobCount INTEGER NOT NULL,
+                TotalPages INTEGER NOT NULL,
+                AmountCents INTEGER NOT NULL,
+                Note TEXT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_BillingSessions_OpenTag
+                ON BillingSessions(BillingTagId) WHERE Status = 'Open';
+            """, cancellationToken).ConfigureAwait(false);
+
+        await EnsureColumnAsync(connection, "PrintJobs", "BillingTagId", "TEXT NULL", cancellationToken)
+            .ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "PrintJobs", "BillingSessionId", "TEXT NULL", cancellationToken)
+            .ConfigureAwait(false);
+        await EnsureColumnAsync(connection, "PrintJobs", "TagNameSnapshot", "TEXT NULL", cancellationToken)
+            .ConfigureAwait(false);
+
+        await ExecuteAsync(connection,
+            """
+            CREATE INDEX IF NOT EXISTS IX_PrintJobs_BillingTag ON PrintJobs(BillingTagId);
+            CREATE INDEX IF NOT EXISTS IX_PrintJobs_BillingSession ON PrintJobs(BillingSessionId);
             """, cancellationToken).ConfigureAwait(false);
     }
 
@@ -166,7 +208,8 @@ public sealed class PrintPalDatabase
                 ColorMode, DuplexMode, Copies, PageCount, SimplexPriceCents, DuplexPriceCents,
                 DuplexSheetsPerCopy, SimplexSheetsPerCopy, TotalDuplexSheets, TotalSimplexSheets,
                 TotalSheets, UnitPriceCents, AmountCents, PricingJson, TargetPrinterId, Status,
-                StatusReason, IsEstimated, IsAdjusted, IsDeleted, RawAttributesJson,
+                StatusReason, BillingTagId, BillingSessionId, TagNameSnapshot,
+                IsEstimated, IsAdjusted, IsDeleted, RawAttributesJson,
                 PricedAtUtc, ForwardedAtUtc
             ) VALUES (
                 $id, $created, $captured, $documentName, $userName, $sourceApp,
@@ -175,7 +218,8 @@ public sealed class PrintPalDatabase
                 $colorMode, $duplexMode, $copies, $pageCount, $simplexPrice, $duplexPrice,
                 $duplexSheetsPerCopy, $simplexSheetsPerCopy, $totalDuplexSheets, $totalSimplexSheets,
                 $totalSheets, $unitPrice, $amount, $pricingJson, $targetPrinterId, $status,
-                $statusReason, $isEstimated, $isAdjusted, $isDeleted, $rawAttributesJson,
+                $statusReason, $billingTagId, $billingSessionId, $tagNameSnapshot,
+                $isEstimated, $isAdjusted, $isDeleted, $rawAttributesJson,
                 $pricedAt, $forwardedAt
             );
             """;
@@ -213,6 +257,9 @@ public sealed class PrintPalDatabase
         Add(command, "$targetPrinterId", job.TargetPrinterId?.ToString("D"));
         Add(command, "$status", job.Status.ToString());
         Add(command, "$statusReason", job.StatusReason);
+        Add(command, "$billingTagId", job.BillingTagId?.ToString("D"));
+        Add(command, "$billingSessionId", job.BillingSessionId?.ToString("D"));
+        Add(command, "$tagNameSnapshot", job.TagNameSnapshot);
         Add(command, "$isEstimated", job.IsEstimated ? 1 : 0);
         Add(command, "$isAdjusted", job.IsAdjusted ? 1 : 0);
         Add(command, "$isDeleted", job.IsDeleted ? 1 : 0);
@@ -294,6 +341,510 @@ public sealed class PrintPalDatabase
         Add(command, "$id", id.ToString("D"));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    // ------------------------------------------------------------------ billing tags
+
+    public async Task<IReadOnlyList<BillingTag>> GetBillingTagsAsync(
+        bool includeArchived = false,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = includeArchived
+            ? "SELECT * FROM BillingTags WHERE IsDeleted = 0 ORDER BY SequenceNumber;"
+            : "SELECT * FROM BillingTags WHERE IsDeleted = 0 AND IsArchived = 0 ORDER BY SequenceNumber;";
+        var tags = new List<BillingTag>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            tags.Add(MapBillingTag(reader));
+        }
+        return tags;
+    }
+
+    public async Task<BillingTag?> GetBillingTagAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await GetBillingTagAsync(connection, id, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SaveBillingTagAsync(BillingTag tag, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(tag);
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT OR REPLACE INTO BillingTags
+                (Id, SequenceNumber, Name, Note, CreatedAtUtc, IsArchived, IsDeleted, ArchivedAtUtc, DeletedAtUtc)
+            VALUES
+                ($id, $sequence, $name, $note, $created, $archived, $deleted, $archivedAt, $deletedAt);
+            """;
+        Add(command, "$id", tag.Id.ToString("D"));
+        Add(command, "$sequence", tag.SequenceNumber);
+        Add(command, "$name", tag.Name);
+        Add(command, "$note", tag.Note);
+        Add(command, "$created", ToIso(tag.CreatedAtUtc));
+        Add(command, "$archived", tag.IsArchived ? 1 : 0);
+        Add(command, "$deleted", tag.IsDeleted ? 1 : 0);
+        Add(command, "$archivedAt", ToIso(tag.ArchivedAtUtc));
+        Add(command, "$deletedAt", ToIso(tag.DeletedAtUtc));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ArchiveBillingTagAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE BillingTags
+            SET IsArchived = 1, ArchivedAtUtc = $now
+            WHERE Id = $id;
+            """;
+        Add(command, "$now", ToIso(DateTimeOffset.UtcNow));
+        Add(command, "$id", id.ToString("D"));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteBillingTagAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        var open = await GetOpenSessionAsync(connection, id, cancellationToken).ConfigureAwait(false);
+        if (open is not null)
+        {
+            throw new InvalidOperationException("该标签还有未结账会话，请先结账。");
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE BillingTags
+            SET IsDeleted = 1, DeletedAtUtc = $now
+            WHERE Id = $id;
+            """;
+        Add(command, "$now", ToIso(DateTimeOffset.UtcNow));
+        Add(command, "$id", id.ToString("D"));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // ------------------------------------------------------------------ billing sessions
+
+    public async Task<BillingContext> EnsureActiveBillingContextAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        var tagId = await GetSettingAsync(connection, "activeBillingTagId", cancellationToken).ConfigureAwait(false);
+        var sessionId = await GetSettingAsync(connection, "activeBillingSessionId", cancellationToken).ConfigureAwait(false);
+
+        if (Guid.TryParse(tagId, out var parsedTagId) &&
+            Guid.TryParse(sessionId, out var parsedSessionId))
+        {
+            var tag = await GetBillingTagAsync(connection, parsedTagId, cancellationToken).ConfigureAwait(false);
+            var session = await GetSessionAsync(connection, parsedSessionId, cancellationToken).ConfigureAwait(false);
+            if (tag is { IsOpen: true } && session is { Status: BillingSessionStatus.Open } &&
+                session.BillingTagId == tag.Id)
+            {
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return new BillingContext(tag, session);
+            }
+        }
+
+        var nextTag = await GetNextOpenTagAsync(connection, null, cancellationToken).ConfigureAwait(false);
+        nextTag ??= await CreateNextTagAsync(connection, cancellationToken).ConfigureAwait(false);
+
+        var nextSession = await GetOpenSessionAsync(connection, nextTag.Id, cancellationToken).ConfigureAwait(false)
+                          ?? await CreateSessionAsync(connection, nextTag, cancellationToken).ConfigureAwait(false);
+
+        await SetSettingAsync(connection, "activeBillingTagId", nextTag.Id.ToString("D"), cancellationToken)
+            .ConfigureAwait(false);
+        await SetSettingAsync(connection, "activeBillingSessionId", nextSession.Id.ToString("D"), cancellationToken)
+            .ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return new BillingContext(nextTag, nextSession);
+    }
+
+    public async Task<BillingSession?> GetOpenSessionAsync(Guid tagId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await GetOpenSessionAsync(connection, tagId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<BillingSession> OpenSessionAsync(Guid tagId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        var tag = await GetBillingTagAsync(connection, tagId, cancellationToken).ConfigureAwait(false)
+                  ?? throw new InvalidOperationException("标签不存在。");
+        if (!tag.IsOpen)
+        {
+            throw new InvalidOperationException("标签已归档。");
+        }
+
+        return await GetOpenSessionAsync(connection, tagId, cancellationToken).ConfigureAwait(false)
+               ?? await CreateSessionAsync(connection, tag, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<SessionSummary> GetSessionSummaryAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*),
+                   COALESCE(SUM(PageCount * Copies), 0),
+                   COALESCE(SUM(AmountCents), 0),
+                   COALESCE(SUM(CASE WHEN Status = 'Succeeded' THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN Status NOT IN ('Succeeded','Canceled') THEN 1 ELSE 0 END), 0)
+            FROM PrintJobs
+            WHERE IsDeleted = 0 AND BillingSessionId = $session;
+            """;
+        Add(command, "$session", sessionId.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new SessionSummary(sessionId, 0, 0, 0, 0, 0);
+        }
+        return new SessionSummary(
+            sessionId,
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            reader.GetInt64(2),
+            reader.GetInt32(3),
+            reader.GetInt32(4));
+    }
+
+    public async Task<CheckoutResult> CheckoutAndAdvanceAsync(
+        Guid sessionId,
+        string? note,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        var session = await GetSessionAsync(connection, sessionId, cancellationToken).ConfigureAwait(false)
+                      ?? throw new InvalidOperationException("会话不存在。");
+        if (session.Status != BillingSessionStatus.Open)
+        {
+            throw new InvalidOperationException("该会话已经结账。");
+        }
+
+        var tag = await GetBillingTagAsync(connection, session.BillingTagId, cancellationToken).ConfigureAwait(false)
+                  ?? throw new InvalidOperationException("标签不存在。");
+
+        var jobs = await GetSessionJobsAsync(connection, sessionId, cancellationToken).ConfigureAwait(false);
+        var blocking = jobs.Where(job => job.Status is not (JobStatus.Succeeded or JobStatus.Canceled)).ToList();
+        if (blocking.Count > 0)
+        {
+            throw new CheckoutBlockedException(blocking);
+        }
+
+        var succeeded = jobs.Where(job => job.Status == JobStatus.Succeeded).ToList();
+        session.TagNameSnapshot = tag.Name;
+        session.Status = BillingSessionStatus.Closed;
+        session.ClosedAtUtc = DateTimeOffset.UtcNow;
+        session.JobCount = succeeded.Count;
+        session.TotalPages = succeeded.Sum(job => job.PageCount * job.Copies);
+        session.AmountCents = succeeded.Sum(job => job.AmountCents);
+        session.Note = note;
+
+        if (succeeded.Count == 0)
+        {
+            await using var deleteSession = connection.CreateCommand();
+            deleteSession.CommandText = "DELETE FROM BillingSessions WHERE Id = $id;";
+            Add(deleteSession, "$id", sessionId.ToString("D"));
+            await deleteSession.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await using var close = connection.CreateCommand();
+            close.CommandText = """
+                UPDATE BillingSessions
+                SET TagNameSnapshot = $name, ClosedAtUtc = $closed, Status = 'Closed', JobCount = $jobs,
+                    TotalPages = $pages, AmountCents = $amount, Note = $note
+                WHERE Id = $id;
+                """;
+            Add(close, "$name", session.TagNameSnapshot);
+            Add(close, "$closed", ToIso(session.ClosedAtUtc));
+            Add(close, "$jobs", session.JobCount);
+            Add(close, "$pages", session.TotalPages);
+            Add(close, "$amount", session.AmountCents);
+            Add(close, "$note", note);
+            Add(close, "$id", sessionId.ToString("D"));
+            await close.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var archive = connection.CreateCommand())
+        {
+            archive.CommandText = """
+                UPDATE BillingTags SET IsArchived = 1, ArchivedAtUtc = $now WHERE Id = $id;
+                """;
+            Add(archive, "$now", ToIso(DateTimeOffset.UtcNow));
+            Add(archive, "$id", tag.Id.ToString("D"));
+            await archive.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var nextTag = await GetNextOpenTagAsync(connection, tag.SequenceNumber, cancellationToken).ConfigureAwait(false)
+                      ?? await CreateNextTagAsync(connection, cancellationToken).ConfigureAwait(false);
+        var nextSession = await GetOpenSessionAsync(connection, nextTag.Id, cancellationToken).ConfigureAwait(false)
+                          ?? await CreateSessionAsync(connection, nextTag, cancellationToken).ConfigureAwait(false);
+
+        await SetSettingAsync(connection, "activeBillingTagId", nextTag.Id.ToString("D"), cancellationToken)
+            .ConfigureAwait(false);
+        await SetSettingAsync(connection, "activeBillingSessionId", nextSession.Id.ToString("D"), cancellationToken)
+            .ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return new CheckoutResult(session, nextTag, nextSession, Array.Empty<PrintJob>());
+    }
+
+    public async Task<IReadOnlyList<BillingSession>> GetClosedSessionsAsync(
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        Guid? tagId,
+        int limit = 200,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT * FROM BillingSessions
+            WHERE Status = 'Closed'
+              AND ($from IS NULL OR ClosedAtUtc >= $from)
+              AND ($to IS NULL OR ClosedAtUtc < $to)
+              AND ($tag IS NULL OR BillingTagId = $tag)
+            ORDER BY ClosedAtUtc DESC
+            LIMIT $limit;
+            """;
+        Add(command, "$from", ToIso(from));
+        Add(command, "$to", ToIso(to));
+        Add(command, "$tag", tagId?.ToString("D"));
+        Add(command, "$limit", Math.Max(1, limit));
+        var sessions = new List<BillingSession>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            sessions.Add(MapBillingSession(reader));
+        }
+        return sessions;
+    }
+
+    public async Task<IReadOnlyList<PrintJob>> GetSessionJobsAsync(
+        Guid sessionId,
+        bool includeDeleted = false,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await GetSessionJobsAsync(connection, sessionId, cancellationToken, includeDeleted)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<PrintJob>> GetLegacyUnassignedJobsAsync(
+        int limit = 200,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {SelectJobColumns}
+            FROM PrintJobs
+            WHERE IsDeleted = 0 AND BillingTagId IS NULL
+            ORDER BY CreatedAtUtc DESC
+            LIMIT $limit;
+            """;
+        Add(command, "$limit", Math.Max(1, limit));
+        var jobs = new List<PrintJob>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            jobs.Add(MapJob(reader));
+        }
+        return jobs;
+    }
+
+    // ------------------------------------------------------------------ billing helpers
+
+    private static async Task<BillingTag?> GetBillingTagAsync(
+        SqliteConnection connection,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM BillingTags WHERE Id = $id;";
+        Add(command, "$id", id.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? MapBillingTag(reader) : null;
+    }
+
+    private static async Task<BillingTag?> GetNextOpenTagAsync(
+        SqliteConnection connection,
+        int? afterSequence,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT * FROM BillingTags
+            WHERE IsArchived = 0 AND IsDeleted = 0
+              AND ($after IS NULL OR SequenceNumber > $after)
+            ORDER BY SequenceNumber
+            LIMIT 1;
+            """;
+        Add(command, "$after", afterSequence);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? MapBillingTag(reader) : null;
+    }
+
+    private static async Task<BillingTag> CreateNextTagAsync(
+        SqliteConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await using var maxCommand = connection.CreateCommand();
+        maxCommand.CommandText = "SELECT COALESCE(MAX(SequenceNumber), 0) FROM BillingTags;";
+        var max = Convert.ToInt32(await maxCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+        var tag = new BillingTag
+        {
+            SequenceNumber = max + 1,
+            Name = $"标签{max + 1}",
+        };
+
+        await using var insert = connection.CreateCommand();
+        insert.CommandText = """
+            INSERT INTO BillingTags
+                (Id, SequenceNumber, Name, Note, CreatedAtUtc, IsArchived, IsDeleted, ArchivedAtUtc, DeletedAtUtc)
+            VALUES
+                ($id, $sequence, $name, NULL, $created, 0, 0, NULL, NULL);
+            """;
+        Add(insert, "$id", tag.Id.ToString("D"));
+        Add(insert, "$sequence", tag.SequenceNumber);
+        Add(insert, "$name", tag.Name);
+        Add(insert, "$created", ToIso(tag.CreatedAtUtc));
+        await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return tag;
+    }
+
+    private static async Task<BillingSession?> GetOpenSessionAsync(
+        SqliteConnection connection,
+        Guid tagId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM BillingSessions WHERE BillingTagId = $tag AND Status = 'Open' LIMIT 1;";
+        Add(command, "$tag", tagId.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? MapBillingSession(reader) : null;
+    }
+
+    private static async Task<BillingSession?> GetSessionAsync(
+        SqliteConnection connection,
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM BillingSessions WHERE Id = $id;";
+        Add(command, "$id", sessionId.ToString("D"));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? MapBillingSession(reader) : null;
+    }
+
+    private static async Task<BillingSession> CreateSessionAsync(
+        SqliteConnection connection,
+        BillingTag tag,
+        CancellationToken cancellationToken)
+    {
+        var session = new BillingSession
+        {
+            BillingTagId = tag.Id,
+            TagNameSnapshot = tag.Name,
+        };
+        await using var insert = connection.CreateCommand();
+        insert.CommandText = """
+            INSERT INTO BillingSessions
+                (Id, BillingTagId, TagNameSnapshot, OpenedAtUtc, ClosedAtUtc, Status, JobCount, TotalPages, AmountCents, Note)
+            VALUES
+                ($id, $tag, $name, $opened, NULL, 'Open', 0, 0, 0, NULL);
+            """;
+        Add(insert, "$id", session.Id.ToString("D"));
+        Add(insert, "$tag", tag.Id.ToString("D"));
+        Add(insert, "$name", tag.Name);
+        Add(insert, "$opened", ToIso(session.OpenedAtUtc));
+        await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return session;
+    }
+
+    private static async Task<IReadOnlyList<PrintJob>> GetSessionJobsAsync(
+        SqliteConnection connection,
+        Guid sessionId,
+        CancellationToken cancellationToken,
+        bool includeDeleted = false)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {SelectJobColumns}
+            FROM PrintJobs
+            WHERE BillingSessionId = $session
+              AND ($includeDeleted = 1 OR IsDeleted = 0)
+            ORDER BY CreatedAtUtc;
+            """;
+        Add(command, "$session", sessionId.ToString("D"));
+        Add(command, "$includeDeleted", includeDeleted ? 1 : 0);
+        var jobs = new List<PrintJob>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            jobs.Add(MapJob(reader));
+        }
+        return jobs;
+    }
+
+    private static async Task<string?> GetSettingAsync(
+        SqliteConnection connection,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Value FROM Settings WHERE Key = $key;";
+        Add(command, "$key", key);
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+    }
+
+    private static async Task SetSettingAsync(
+        SqliteConnection connection,
+        string key,
+        string value,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ($key, $value);";
+        Add(command, "$key", key);
+        Add(command, "$value", value);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static BillingTag MapBillingTag(SqliteDataReader reader) => new()
+    {
+        Id = Guid.Parse(GetString(reader, "Id")),
+        SequenceNumber = GetInt32(reader, "SequenceNumber"),
+        Name = GetString(reader, "Name"),
+        Note = GetNullableString(reader, "Note"),
+        CreatedAtUtc = ParseDate(GetString(reader, "CreatedAtUtc")),
+        IsArchived = GetInt32(reader, "IsArchived") != 0,
+        IsDeleted = GetInt32(reader, "IsDeleted") != 0,
+        ArchivedAtUtc = ParseNullableDate(GetNullableString(reader, "ArchivedAtUtc")),
+        DeletedAtUtc = ParseNullableDate(GetNullableString(reader, "DeletedAtUtc")),
+    };
+
+    private static BillingSession MapBillingSession(SqliteDataReader reader) => new()
+    {
+        Id = Guid.Parse(GetString(reader, "Id")),
+        BillingTagId = Guid.Parse(GetString(reader, "BillingTagId")),
+        TagNameSnapshot = GetString(reader, "TagNameSnapshot"),
+        OpenedAtUtc = ParseDate(GetString(reader, "OpenedAtUtc")),
+        ClosedAtUtc = ParseNullableDate(GetNullableString(reader, "ClosedAtUtc")),
+        Status = ParseEnum(GetString(reader, "Status"), BillingSessionStatus.Open),
+        JobCount = GetInt32(reader, "JobCount"),
+        TotalPages = GetInt32(reader, "TotalPages"),
+        AmountCents = GetInt64(reader, "AmountCents"),
+        Note = GetNullableString(reader, "Note"),
+    };
 
     // ------------------------------------------------------------------ printers
 
@@ -558,6 +1109,9 @@ public sealed class PrintPalDatabase
             TargetPrinterId = GetNullableGuid(reader, "TargetPrinterId"),
             Status = ParseEnum(GetString(reader, "Status"), JobStatus.Captured),
             StatusReason = GetNullableString(reader, "StatusReason"),
+            BillingTagId = GetNullableGuid(reader, "BillingTagId"),
+            BillingSessionId = GetNullableGuid(reader, "BillingSessionId"),
+            TagNameSnapshot = GetNullableString(reader, "TagNameSnapshot"),
             IsEstimated = GetInt32(reader, "IsEstimated") != 0,
             IsAdjusted = GetInt32(reader, "IsAdjusted") != 0,
             IsDeleted = GetInt32(reader, "IsDeleted") != 0,
@@ -673,6 +1227,31 @@ public sealed class PrintPalDatabase
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    private static async Task EnsureColumnAsync(
+        SqliteConnection connection,
+        string table,
+        string column,
+        string definition,
+        CancellationToken cancellationToken)
+    {
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = $"PRAGMA table_info({table});";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+        }
+
+        await using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+        await alter.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private static void Add(SqliteCommand command, string name, object? value) =>
         command.Parameters.AddWithValue(name, value ?? DBNull.Value);
 
@@ -718,3 +1297,4 @@ public sealed class PrintPalDatabase
     private static TEnum ParseEnum<TEnum>(string value, TEnum fallback) where TEnum : struct, Enum =>
         Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed) ? parsed : fallback;
 }
+

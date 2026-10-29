@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
@@ -25,12 +25,18 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<PrinterRow> _printerRows = new();
     private readonly ObservableCollection<RoutingRow> _routingRows = new();
     private readonly ObservableCollection<PriceRow> _priceRows = new();
+    private readonly ObservableCollection<BillingTagRow> _tagRows = new();
+    private readonly ObservableCollection<BillingSessionRow> _sessionRows = new();
+    private readonly ObservableCollection<JobRow> _historyJobRows = new();
     private readonly List<JobRow> _allJobs = new();
     private readonly DispatcherTimer _timer;
 
     private List<Printer> _printers = new();
     private List<RoutingRule> _routingRules = new();
     private List<PriceRule> _priceRules = new();
+    private List<BillingSession> _closedSessions = new();
+    private BillingTag? _currentTag;
+    private BillingSession? _currentSession;
 
     private WinForms.NotifyIcon? _trayIcon;
     private bool _initialized;
@@ -38,6 +44,16 @@ public partial class MainWindow : Window
     private bool _balloonShown;
     private bool _suppressAutostart;
     private bool _pricesDirty;
+    private bool _syncingTags;
+    private bool _applyingMode;
+    private UiMode _mode = UiMode.Full;
+
+    private enum UiMode
+    {
+        Full,
+        Simple,
+        Minimal,
+    }
 
     public MainWindow(IPrintPalBackend agent)
     {
@@ -46,16 +62,22 @@ public partial class MainWindow : Window
         _agent = agent;
 
         JobsGrid.ItemsSource = _jobRows;
+        SimpleJobsGrid.ItemsSource = _jobRows;
         PrintersGrid.ItemsSource = _printerRows;
         RoutingGrid.ItemsSource = _routingRows;
         PricesGrid.ItemsSource = _priceRows;
+        HistoryGrid.ItemsSource = _sessionRows;
+        HistoryJobsGrid.ItemsSource = _historyJobRows;
+        FullTagTabs.ItemsSource = _tagRows;
+        SimpleTagTabs.ItemsSource = _tagRows;
+        MinimalTagCombo.ItemsSource = _tagRows;
 
         IppUriText.Text = agent.IppUri;
         DataDirText.Text = agent.Options.DataDirectory;
         AgentStatusText.Text = $"IPP 服务：{agent.IppUri}";
         AutoForwardCheck.IsChecked = agent.Options.AutoForward;
 
-        var version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.3.0";
+        var version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.1";
         VersionText.Text = $"PrintPal {version}";
 
         _suppressAutostart = true;
@@ -73,6 +95,7 @@ public partial class MainWindow : Window
                 HideToTray();
             }
         };
+        LocationChanged += (_, _) => SaveModePosition();
     }
 
     public async Task InitializeAsync()
@@ -88,6 +111,13 @@ public partial class MainWindow : Window
         {
             await ReloadAsync();
             UpdateQueueStatus();
+
+            var savedMode = await _agent.Database.GetSettingAsync("uiMode");
+            if (Enum.TryParse<UiMode>(savedMode, out var mode))
+            {
+                await SetModeAsync(mode, persist: false);
+            }
+
             _timer.Start();
         }
         catch (Exception ex)
@@ -115,12 +145,16 @@ public partial class MainWindow : Window
             Icon = (Environment.ProcessPath is { } processPath
                 ? System.Drawing.Icon.ExtractAssociatedIcon(processPath)
                 : null) ?? System.Drawing.SystemIcons.Application,
-            Text = "PrintPal 打印助手",
+            Text = "PrintPal",
             Visible = true,
         };
 
         var menu = new WinForms.ContextMenuStrip();
         menu.Items.Add("打开 PrintPal", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
+        menu.Items.Add("完整模式", null, (_, _) => Dispatcher.Invoke(async () => await SetModeAsync(UiMode.Full)));
+        menu.Items.Add("简洁模式", null, (_, _) => Dispatcher.Invoke(async () => await SetModeAsync(UiMode.Simple)));
+        menu.Items.Add("极简模式", null, (_, _) => Dispatcher.Invoke(async () => await SetModeAsync(UiMode.Minimal)));
+        menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("打开数据目录", null, (_, _) => OpenFolder(_agent.Options.DataDirectory));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(() => ((App)Application.Current).ExitApplication()));
@@ -134,8 +168,6 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
-        Topmost = true;
-        Topmost = false;
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e)
@@ -156,18 +188,31 @@ public partial class MainWindow : Window
         try
         {
             var selectedJobId = (JobsGrid.SelectedItem as JobRow)?.Job.Id;
+            var billing = await _agent.Database.EnsureActiveBillingContextAsync();
+            _currentTag = billing.Tag;
+            _currentSession = billing.Session;
 
-            var jobsTask = _agent.Database.GetJobsAsync(500);
+            var tagsTask = _agent.Database.GetBillingTagsAsync();
+            var jobsTask = _agent.Database.GetSessionJobsAsync(_currentSession.Id);
             var printersTask = _agent.Database.GetPrintersAsync();
             var routingTask = _agent.Database.GetRoutingRulesAsync();
             var pricesTask = _agent.Database.GetPriceRulesAsync();
+            var sessionsTask = _agent.Database.GetClosedSessionsAsync(null, null, null, 200);
 
-            await Task.WhenAll(jobsTask, printersTask, routingTask, pricesTask);
+            await Task.WhenAll(tagsTask, jobsTask, printersTask, routingTask, pricesTask, sessionsTask);
 
+            var tags = await tagsTask;
             var jobs = await jobsTask;
             _printers = (await printersTask).ToList();
             _routingRules = (await routingTask).ToList();
             _priceRules = (await pricesTask).ToList();
+            _closedSessions = (await sessionsTask).ToList();
+
+            _tagRows.Clear();
+            foreach (var tag in tags)
+            {
+                _tagRows.Add(new BillingTagRow(tag));
+            }
 
             var printerNames = _printers.ToDictionary(printer => printer.Id, printer => printer.Name);
             _allJobs.Clear();
@@ -194,22 +239,18 @@ public partial class MainWindow : Window
                 }
             }
 
+            _sessionRows.Clear();
+            foreach (var session in _closedSessions)
+            {
+                _sessionRows.Add(new BillingSessionRow(session));
+            }
+
             ApplyFilters(selectJobId: selectedJobId);
+            SyncTagSelection();
+            UpdateBillingChrome();
 
-            var now = DateTimeOffset.Now;
-            var todayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
-            var weekStart = todayStart.AddDays(-(((int)now.DayOfWeek + 6) % 7));
-            var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, now.Offset);
-
-            var today = await _agent.Database.GetSummaryAsync(todayStart, now.AddMinutes(1));
-            var week = await _agent.Database.GetSummaryAsync(weekStart, now.AddMinutes(1));
-            var month = await _agent.Database.GetSummaryAsync(monthStart, now.AddMinutes(1));
-
-            TodayText.Text = FormatSummary(today);
-            WeekText.Text = FormatSummary(week);
-            MonthText.Text = FormatSummary(month);
-
-            StatusBarText.Text = $"最后刷新 {DateTime.Now:HH:mm:ss} · 共 {jobs.Count} 条记录";
+            StatusBarText.Text = $"最后刷新 {DateTime.Now:HH:mm:ss} · 当前标签 {jobs.Count} 条记录";
+            SimpleStatusText.Text = StatusBarText.Text;
         }
         catch (Exception ex)
         {
@@ -222,23 +263,55 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string FormatSummary(JobSummary summary) =>
-        $"{summary.JobCount} 单 · {Money.FormatCents(summary.AmountCents)}";
+    private void UpdateBillingChrome()
+    {
+        if (_currentTag is null)
+        {
+            return;
+        }
+
+        var amount = _allJobs.Sum(row => row.Job.AmountCents);
+        var count = _allJobs.Count;
+        var amountText = Money.FormatCents(amount);
+
+        FullCurrentTagText.Text = $"当前标签：{_currentTag.Name}";
+        FullAmountText.Text = amountText;
+        SimpleCurrentTagText.Text = $"当前标签：{_currentTag.Name}";
+        SimpleAmountText.Text = amountText;
+        SimpleCountText.Text = $"本次 {count} 单";
+        MinimalAmountText.Text = amountText;
+        MinimalCountText.Text = $"{count} 单";
+    }
+
+    private void SyncTagSelection()
+    {
+        if (_currentTag is null)
+        {
+            return;
+        }
+
+        var row = _tagRows.FirstOrDefault(item => item.Tag.Id == _currentTag.Id);
+        if (row is null)
+        {
+            return;
+        }
+
+        _syncingTags = true;
+        try
+        {
+            FullTagTabs.SelectedItem = row;
+            SimpleTagTabs.SelectedItem = row;
+            MinimalTagCombo.SelectedItem = row;
+        }
+        finally
+        {
+            _syncingTags = false;
+        }
+    }
 
     private void ApplyFilters(Guid? selectJobId = null)
     {
         var filtered = _allJobs.AsEnumerable();
-
-        var now = DateTimeOffset.Now;
-        var todayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
-
-        filtered = DateRangeCombo.SelectedIndex switch
-        {
-            1 => filtered.Where(row => row.Job.CreatedAtUtc >= todayStart),
-            2 => filtered.Where(row => row.Job.CreatedAtUtc >= todayStart.AddDays(-(((int)now.DayOfWeek + 6) % 7))),
-            3 => filtered.Where(row => row.Job.CreatedAtUtc >= new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, now.Offset)),
-            _ => filtered,
-        };
 
         var statusText = (StatusCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "全部状态";
         filtered = statusText switch
@@ -268,8 +341,7 @@ public partial class MainWindow : Window
             _jobRows.Add(row);
         }
 
-        var total = list.Sum(row => row.Job.AmountCents);
-        FilterSummaryText.Text = $"{list.Count} 条 · {Money.FormatCents(total)}";
+        FilterSummaryText.Text = $"{list.Count} 条";
 
         if (selectJobId is Guid id)
         {
@@ -311,6 +383,443 @@ public partial class MainWindow : Window
     private void JobsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         JobDetailsBox.Text = (JobsGrid.SelectedItem as JobRow)?.DetailsText ?? "";
+    }
+
+    private async void TagTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingTags || !_initialized || sender is not ListBox list)
+        {
+            return;
+        }
+
+        if (list.SelectedItem is BillingTagRow row)
+        {
+            await SelectTagAsync(row);
+        }
+    }
+
+    private async void MinimalTag_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingTags || !_initialized || MinimalTagCombo.SelectedItem is not BillingTagRow row)
+        {
+            return;
+        }
+
+        await SelectTagAsync(row);
+    }
+
+    private async Task SelectTagAsync(BillingTagRow row)
+    {
+        if (_currentTag?.Id == row.Tag.Id)
+        {
+            return;
+        }
+
+        try
+        {
+            var session = await _agent.Database.OpenSessionAsync(row.Tag.Id);
+            await SaveSettingAsync("activeBillingTagId", row.Tag.Id.ToString("D"));
+            await SaveSettingAsync("activeBillingSessionId", session.Id.ToString("D"));
+            _currentTag = row.Tag;
+            _currentSession = session;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"切换标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void AddTag_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var tags = await _agent.Database.GetBillingTagsAsync(includeArchived: true);
+            var next = tags.Count == 0 ? 1 : tags.Max(tag => tag.SequenceNumber) + 1;
+            var tag = new BillingTag
+            {
+                SequenceNumber = next,
+                Name = $"标签{next}",
+            };
+            await _agent.Database.SaveBillingTagAsync(tag);
+            var session = await _agent.Database.OpenSessionAsync(tag.Id);
+            await SaveSettingAsync("activeBillingTagId", tag.Id.ToString("D"));
+            await SaveSettingAsync("activeBillingSessionId", session.Id.ToString("D"));
+            _currentTag = tag;
+            _currentSession = session;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"新建标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void RenameTag_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentTag is null)
+        {
+            return;
+        }
+
+        var dialog = new BillingTagEditWindow(_currentTag) { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await _agent.Database.SaveBillingTagAsync(dialog.EditedTag);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"保存标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void DeleteTag_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentTag is null || _currentSession is null)
+        {
+            return;
+        }
+
+        if (_allJobs.Count > 0)
+        {
+            MessageBox.Show("当前标签已有打印记录，请使用“结账”归档。", "PrintPal",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirm = MessageBox.Show($"删除空标签“{_currentTag.Name}”？", "PrintPal",
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            await _agent.Database.CheckoutAndAdvanceAsync(_currentSession.Id, "删除空标签");
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"删除标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void Checkout_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentSession is null || _currentTag is null)
+        {
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"结账“{_currentTag.Name}”？\n\n本次 {_allJobs.Count} 单，金额 {FullAmountText.Text}。\n结账后自动归档并切换到下一个标签。",
+            "PrintPal",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            var label = _currentTag.Name;
+            var amount = FullAmountText.Text;
+            var result = await _agent.Database.CheckoutAndAdvanceAsync(_currentSession.Id, null);
+            _currentTag = result.NextTag;
+            _currentSession = result.NextSession;
+            await ReloadAsync();
+            MessageBox.Show($"“{label}”已结账：{amount}。\n当前标签：{_currentTag.Name}",
+                "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (CheckoutBlockedException ex)
+        {
+            var names = string.Join("\n", ex.BlockingJobs.Take(8)
+                .Select(job => $"{job.DocumentName}（{JobStatusText(job.Status)}）"));
+            MessageBox.Show($"还有未处理的任务，不能结账：\n\n{names}\n\n请先转发完成或删除这些记录。",
+                "PrintPal", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"结账失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void SwitchNextTag_Click(object sender, RoutedEventArgs e)
+    {
+        if (_tagRows.Count == 0)
+        {
+            return;
+        }
+
+        var index = _tagRows.ToList().FindIndex(row => row.Tag.Id == _currentTag?.Id);
+        var next = _tagRows[(index + 1 + _tagRows.Count) % _tagRows.Count];
+        await SelectTagAsync(next);
+    }
+
+    private async void HistoryGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (HistoryGrid.SelectedItem is not BillingSessionRow row)
+        {
+            _historyJobRows.Clear();
+            return;
+        }
+
+        try
+        {
+            var jobs = await _agent.Database.GetSessionJobsAsync(row.Session.Id);
+            var printerNames = _printers.ToDictionary(printer => printer.Id, printer => printer.Name);
+            _historyJobRows.Clear();
+            foreach (var job in jobs)
+            {
+                _historyJobRows.Add(new JobRow(job, printerNames));
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"读取历史任务失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void TagTabs_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        RenameTag_Click(sender, e);
+        await Task.CompletedTask;
+    }
+
+    private static string JobStatusText(JobStatus status) => status switch
+    {
+        JobStatus.Succeeded => "已转发",
+        JobStatus.Failed => "失败",
+        JobStatus.Unknown => "未知",
+        JobStatus.NeedsReview => "待确认",
+        JobStatus.Unrouted => "未路由",
+        JobStatus.Held => "待确认",
+        JobStatus.Priced => "待转发",
+        JobStatus.Captured => "捕获中",
+        _ => status.ToString(),
+    };
+
+    private async void FullMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Full);
+
+    private async void SimpleMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Simple);
+
+    private async void MinimalMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Minimal);
+
+    private void CloseToTray_Click(object sender, RoutedEventArgs e) => HideToTray();
+
+    private async void MinimalHeader_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == System.Windows.Input.MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
+        await Task.CompletedTask;
+    }
+
+    private async void TopmostToggle_Click(object sender, RoutedEventArgs e)
+    {
+        Topmost = !Topmost;
+        await SaveSettingAsync(TopmostKey(_mode), Topmost ? "true" : "false");
+        UpdateTopmostButtons();
+    }
+
+    private async Task SetModeAsync(UiMode mode, bool persist = true)
+    {
+        if (_applyingMode)
+        {
+            return;
+        }
+
+        _applyingMode = true;
+        try
+        {
+            SaveModeBounds();
+            _mode = mode;
+            FullLayout.Visibility = mode == UiMode.Full ? Visibility.Visible : Visibility.Collapsed;
+            SimpleLayout.Visibility = mode == UiMode.Simple ? Visibility.Visible : Visibility.Collapsed;
+            MinimalLayout.Visibility = mode == UiMode.Minimal ? Visibility.Visible : Visibility.Collapsed;
+
+            if (mode == UiMode.Minimal)
+            {
+                WindowStyle = WindowStyle.None;
+                ResizeMode = ResizeMode.NoResize;
+                ShowInTaskbar = false;
+                Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#0F172A")!;
+                Width = 360;
+                Height = 228;
+                MinWidth = 360;
+                MinHeight = 228;
+                await RestoreMinimalPositionAsync();
+            }
+            else
+            {
+                WindowStyle = WindowStyle.SingleBorderWindow;
+                ResizeMode = ResizeMode.CanResize;
+                ShowInTaskbar = true;
+                Background = System.Windows.Media.Brushes.White;
+                MinWidth = 680;
+                MinHeight = 480;
+
+                if (mode == UiMode.Full)
+                {
+                    Width = await GetDoubleSettingAsync("fullWidth", 1400);
+                    Height = await GetDoubleSettingAsync("fullHeight", 880);
+                }
+                else
+                {
+                    Width = await GetDoubleSettingAsync("simpleWidth", 800);
+                    Height = await GetDoubleSettingAsync("simpleHeight", 580);
+                }
+
+                if (mode == UiMode.Full)
+                {
+                    Left = await GetDoubleSettingAsync("fullLeft", Left);
+                    Top = await GetDoubleSettingAsync("fullTop", Top);
+                }
+                else
+                {
+                    Left = await GetDoubleSettingAsync("simpleLeft", Left);
+                    Top = await GetDoubleSettingAsync("simpleTop", Top);
+                }
+            }
+
+            Topmost = await GetBoolSettingAsync(TopmostKey(mode), mode == UiMode.Minimal);
+            UpdateTopmostButtons();
+            if (persist)
+            {
+                await SaveSettingAsync("uiMode", mode.ToString());
+            }
+        }
+        finally
+        {
+            _applyingMode = false;
+        }
+    }
+
+    private void SaveModeBounds()
+    {
+        if (!_initialized || _applyingMode)
+        {
+            return;
+        }
+
+        if (_mode == UiMode.Minimal)
+        {
+            _ = SaveSettingAsync("minimalLeft", Left.ToString("0"));
+            _ = SaveSettingAsync("minimalTop", Top.ToString("0"));
+            return;
+        }
+
+        var prefix = _mode == UiMode.Full ? "full" : "simple";
+        if (!double.IsNaN(Left) && !double.IsNaN(Top) && !double.IsNaN(Width) && !double.IsNaN(Height))
+        {
+            _ = SaveSettingAsync($"{prefix}Left", Left.ToString("0"));
+            _ = SaveSettingAsync($"{prefix}Top", Top.ToString("0"));
+            _ = SaveSettingAsync($"{prefix}Width", Width.ToString("0"));
+            _ = SaveSettingAsync($"{prefix}Height", Height.ToString("0"));
+        }
+    }
+
+    private void SaveModePosition()
+    {
+        if (_applyingMode || _mode != UiMode.Minimal)
+        {
+            return;
+        }
+
+        _ = SaveSettingAsync("minimalLeft", Left.ToString("0"));
+        _ = SaveSettingAsync("minimalTop", Top.ToString("0"));
+    }
+
+    private async Task RestoreMinimalPositionAsync()
+    {
+        var left = await _agent.Database.GetSettingAsync("minimalLeft");
+        var top = await _agent.Database.GetSettingAsync("minimalTop");
+        if (double.TryParse(left, out var savedLeft) && double.TryParse(top, out var savedTop) &&
+            savedLeft > -1000 && savedTop > -1000)
+        {
+            Left = savedLeft;
+            Top = savedTop;
+            ClampToWorkArea();
+            return;
+        }
+
+        PlaceMinimalBottomRight();
+    }
+
+    private void ClampToWorkArea()
+    {
+        var area = SystemParameters.WorkArea;
+        Left = Math.Max(area.Left, Math.Min(Left, area.Right - Width));
+        Top = Math.Max(area.Top, Math.Min(Top, area.Bottom - Height));
+    }
+
+    private void PlaceMinimalBottomRight()
+    {
+        var area = SystemParameters.WorkArea;
+        Left = area.Right - Width - 16;
+        Top = area.Bottom - Height - 16;
+    }
+
+    private void UpdateTopmostButtons()
+    {
+        var text = Topmost ? "置顶：开" : "置顶：关";
+        FullPinButton.Content = text;
+        SimplePinButton.Content = text;
+        MinimalPinButton.Content = text;
+    }
+
+    private static string TopmostKey(UiMode mode) => mode switch
+    {
+        UiMode.Full => "topmost.full",
+        UiMode.Simple => "topmost.simple",
+        _ => "topmost.minimal",
+    };
+
+    private async Task<bool> GetBoolSettingAsync(string key, bool fallback)
+    {
+        try
+        {
+            var value = await _agent.Database.GetSettingAsync(key);
+            return bool.TryParse(value, out var parsed) ? parsed : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private async Task<double> GetDoubleSettingAsync(string key, double fallback)
+    {
+        try
+        {
+            var value = await _agent.Database.GetSettingAsync(key);
+            return double.TryParse(value, out var parsed) ? parsed : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
+
+    private async Task SaveSettingAsync(string key, string value)
+    {
+        try
+        {
+            await _agent.Database.SetSettingAsync(key, value);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"save setting {key} failed: {ex.Message}");
+        }
     }
 
     private async void RetryJob_Click(object sender, RoutedEventArgs e)
@@ -802,6 +1311,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        SaveModeBounds();
+
         if (!((App)Application.Current).IsExiting)
         {
             e.Cancel = true;
@@ -826,4 +1337,5 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 }
+
 
