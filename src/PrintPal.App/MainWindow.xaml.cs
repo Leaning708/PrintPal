@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
@@ -70,7 +70,6 @@ public partial class MainWindow : Window
         HistoryJobsGrid.ItemsSource = _historyJobRows;
         FullTagTabs.ItemsSource = _tagRows;
         SimpleTagTabs.ItemsSource = _tagRows;
-        MinimalTagCombo.ItemsSource = _tagRows;
 
         IppUriText.Text = agent.IppUri;
         DataDirText.Text = agent.Options.DataDirectory;
@@ -279,6 +278,7 @@ public partial class MainWindow : Window
         SimpleCurrentTagText.Text = $"当前标签：{_currentTag.Name}";
         SimpleAmountText.Text = amountText;
         SimpleCountText.Text = $"本次 {count} 单";
+        MinimalTagNameText.Text = _currentTag.Name;
         MinimalAmountText.Text = amountText;
         MinimalCountText.Text = $"{count} 单";
     }
@@ -301,7 +301,6 @@ public partial class MainWindow : Window
         {
             FullTagTabs.SelectedItem = row;
             SimpleTagTabs.SelectedItem = row;
-            MinimalTagCombo.SelectedItem = row;
         }
         finally
         {
@@ -398,15 +397,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void MinimalTag_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_syncingTags || !_initialized || MinimalTagCombo.SelectedItem is not BillingTagRow row)
-        {
-            return;
-        }
-
-        await SelectTagAsync(row);
-    }
 
     private async Task SelectTagAsync(BillingTagRow row)
     {
@@ -613,6 +603,45 @@ public partial class MainWindow : Window
 
     private async void MinimalMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Minimal);
 
+    private async void ModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_applyingMode || !_initialized || sender is not ComboBox combo || combo.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        var mode = combo.SelectedIndex switch
+        {
+            1 => UiMode.Simple,
+            2 => UiMode.Minimal,
+            _ => UiMode.Full,
+        };
+
+        await SetModeAsync(mode);
+    }
+
+    private void SyncModeCombos()
+    {
+        var index = _mode switch
+        {
+            UiMode.Simple => 1,
+            UiMode.Minimal => 2,
+            _ => 0,
+        };
+
+        FullModeCombo.SelectedIndex = index;
+        SimpleModeCombo.SelectedIndex = index;
+        MinimalModeCombo.SelectedIndex = index;
+    }
+
+    private void MinimalTagName_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            RenameTag_Click(sender, e);
+        }
+    }
+
     private void CloseToTray_Click(object sender, RoutedEventArgs e) => HideToTray();
 
     private async void MinimalHeader_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -643,6 +672,7 @@ public partial class MainWindow : Window
         {
             SaveModeBounds();
             _mode = mode;
+            SyncModeCombos();
             FullLayout.Visibility = mode == UiMode.Full ? Visibility.Visible : Visibility.Collapsed;
             SimpleLayout.Visibility = mode == UiMode.Simple ? Visibility.Visible : Visibility.Collapsed;
             MinimalLayout.Visibility = mode == UiMode.Minimal ? Visibility.Visible : Visibility.Collapsed;
@@ -653,10 +683,10 @@ public partial class MainWindow : Window
                 ResizeMode = ResizeMode.NoResize;
                 ShowInTaskbar = false;
                 Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#0F172A")!;
-                Width = 360;
-                Height = 228;
-                MinWidth = 360;
-                MinHeight = 228;
+                Width = 300;
+                Height = 168;
+                MinWidth = 300;
+                MinHeight = 168;
                 await RestoreMinimalPositionAsync();
             }
             else
@@ -1178,6 +1208,18 @@ public partial class MainWindow : Window
         _pricesDirty = true;
     }
 
+    private void PricesGrid_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // WPF's default Undo can make the DataGrid look like it lost every price.
+        // Price editing is explicit-save only; never let Ctrl+Z/Y mutate the table.
+        if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0 &&
+            e.Key is System.Windows.Input.Key.Z or System.Windows.Input.Key.Y)
+        {
+            e.Handled = true;
+            StatusBarText.Text = "价格表不支持撤销/重做；修改后请点击“保存价格”。";
+        }
+    }
+
     private async void SavePrices_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1337,5 +1379,6 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 }
+
 
 
