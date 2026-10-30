@@ -7,7 +7,25 @@
     <InstallerPlatform>x64</InstallerPlatform>
     <OutputPath>$(MSBuildProjectDirectory)\..\..\dist\PrintPal-$(PrintPalVersion)-win-x64\</OutputPath>
     <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildProjectDirectory)\..\..\dist\PrintPal-$(PrintPalVersion)-win-x64</PublishDir>
-    <DefineConstants>AppSource=$(PublishDir)\app;InstallerSource=$(PublishDir)\installer;ProductVersion=$(PrintPalVersion)</DefineConstants>
+
+    <!-- Repo layout and shipping runtime, used by the publish step below. -->
+    <PrintPalRoot>$(MSBuildProjectDirectory)\..\..</PrintPalRoot>
+    <PrintPalAppProject>$(PrintPalRoot)\src\PrintPal.App\PrintPal.App.csproj</PrintPalAppProject>
+    <PrintPalServiceProject>$(PrintPalRoot)\src\PrintPal.Service\PrintPal.Service.csproj</PrintPalServiceProject>
+    <PrintPalInstallerScripts>$(PrintPalRoot)\scripts\install</PrintPalInstallerScripts>
+    <PrintPalRuntime>win-x64</PrintPalRuntime>
+    <PrintPalPayloadDir>$(PublishDir.TrimEnd('\'))</PrintPalPayloadDir>
+
+    <!-- Package.wxs binds to $(PrintPalPayloadDir)\app and \installer, which a plain
+         `dotnet build` never produces. Publish them here so the MSI can be built on
+         its own (solution "Installer" configuration, VS build of this project, or a
+         bare `dotnet build` on this file). Publish-PrintPal.ps1 already published
+         the payload, so it passes false to avoid a second, redundant publish. -->
+    <PrintPalPublishInputs Condition="'$(PrintPalPublishInputs)' == ''">true</PrintPalPublishInputs>
+
+    <_PrintPalPublishArgs>-c $(Configuration) -r $(PrintPalRuntime) --self-contained true -p:PublishSingleFile=false -p:PublishReadyToRun=false -p:DebugType=None -p:DebugSymbols=false -p:PrintPalVersion=$(PrintPalVersion) --nologo</_PrintPalPublishArgs>
+
+    <DefineConstants>AppSource=$(PrintPalPayloadDir)\app;InstallerSource=$(PrintPalPayloadDir)\installer;ProductVersion=$(PrintPalVersion)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +33,36 @@
     <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
   </ItemGroup>
 
+  <Target Name="PublishPrintPalInputs"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(PrintPalPublishInputs)' == 'true'">
+
+    <!-- Drop the previous payload first: `dotnet publish -o` merges into an existing
+         folder, and Package.wxs harvests app\** , so leftovers would ship in the MSI. -->
+    <RemoveDir Directories="$(PrintPalPayloadDir)\app" Condition="Exists('$(PrintPalPayloadDir)\app')" />
+
+    <Message Importance="high" Text="PrintPal.Msi: publishing app and service to $(PrintPalPayloadDir)\app ..." />
+
+    <Exec Command="dotnet publish &quot;$(PrintPalAppProject)&quot; $(_PrintPalPublishArgs) -o &quot;$(PrintPalPayloadDir)\app&quot;"
+          WorkingDirectory="$(PrintPalRoot)" />
+    <Exec Command="dotnet publish &quot;$(PrintPalServiceProject)&quot; $(_PrintPalPublishArgs) -o &quot;$(PrintPalPayloadDir)\app&quot;"
+          WorkingDirectory="$(PrintPalRoot)" />
+
+    <ItemGroup>
+      <_PrintPalInstallerScript Include="$(PrintPalInstallerScripts)\*" />
+    </ItemGroup>
+
+    <Message Importance="high" Text="PrintPal.Msi: staging installer scripts to $(PrintPalPayloadDir)\installer ..." />
+    <Copy SourceFiles="@(_PrintPalInstallerScript)"
+          DestinationFolder="$(PrintPalPayloadDir)\installer"
+          SkipUnchangedFiles="true" />
+
+    <Error Condition="!Exists('$(PrintPalPayloadDir)\app\PrintPal.App.exe')"
+           Text="PrintPal.Msi: PrintPal.App.exe is missing from $(PrintPalPayloadDir)\app; the publish step did not produce a usable payload." />
+    <Error Condition="!Exists('$(PrintPalPayloadDir)\app\PrintPal.Service.exe')"
+           Text="PrintPal.Msi: PrintPal.Service.exe is missing from $(PrintPalPayloadDir)\app; the service publish step failed." />
+    <Error Condition="!Exists('$(PrintPalPayloadDir)\installer\PrintPal.MsiQueue.ps1')"
+           Text="PrintPal.Msi: installer scripts are missing from $(PrintPalPayloadDir)\installer; Package.wxs cannot author its custom actions." />
+  </Target>
+
 </Project>
-
-

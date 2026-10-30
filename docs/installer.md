@@ -11,6 +11,21 @@
 
 P7 新增 **机器级 MSI** 和 **Windows 服务**，APP 关闭/未登录也能收任务。
 
+### 构建 MSI
+
+```powershell
+dotnet build .\PrintPal.sln -c Installer   # 只构建 MSI 工程
+.\Build-Installer.cmd                      # 双击入口，内部调用 Publish-PrintPal.ps1
+```
+
+- `packaging/PrintPal.Msi/PrintPal.Msi.wixproj` 已纳入解决方案，挂在 `packaging` 目录下；
+- `Installer` 解决方案配置只构建该工程，由它自行把 App/Service 自包含发布到
+  `dist\PrintPal-<版本>-win-x64\app\`、铺好 `installer\`，再用 WiX 打包；
+- 因此单独构建该工程即可出 MSI，不必先跑发布脚本；
+- `Publish-PrintPal.ps1` 仍可单独使用；它发布完后会用 `-p:PrintPalPublishInputs=false`
+  跳过工程内的二次发布；
+- 日常 `Debug`/`Release` 配置不构建 MSI；在 VS 中加载 `.wixproj` 需先安装 WiX 工具集 VS 扩展。
+
 ```powershell
 # 安装（管理员）
 msiexec.exe /i .\dist\PrintPal-1.0.1-win-x64\PrintPal-1.0.1-x64.msi /qn /norestart

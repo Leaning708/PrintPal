@@ -114,7 +114,9 @@ if (-not $NoMsi) {
     }
 
     Write-Host 'Building MSI with WiX 5 ...'
-    & dotnet build $msiProject -c $Configuration -p:PrintPalVersion=$version --nologo
+    # The wixproj publishes its own inputs for standalone/solution builds; here the
+    # payload under $Output is already in place, so skip the second publish.
+    & dotnet build $msiProject -c $Configuration -p:PrintPalVersion=$version -p:PrintPalPublishInputs=false --nologo
     if ($LASTEXITCODE -ne 0) { throw 'PrintPal MSI build failed.' }
 
     $msiPath = Join-Path $Output "PrintPal-$version-x64.msi"

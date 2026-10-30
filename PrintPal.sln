@@ -43,6 +43,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintPal.App", "src\PrintPa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrintPal.Service", "src\PrintPal.Service\PrintPal.Service.csproj", "{56AD55BD-E920-4DCF-AA6F-AA80A01C8B9B}"
 EndProject
+Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "PrintPal.Msi", "packaging\PrintPal.Msi\PrintPal.Msi.wixproj", "{B130C7C4-3A94-4AF7-A122-25789D5143AC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "packaging", "packaging", "{D24BB165-47AF-4272-86BC-01B4CF407F44}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +55,7 @@ Global
 		Release|Any CPU = Release|Any CPU
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
+		Installer|Any CPU = Installer|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B6AD8C32-BAE9-4907-9C98-48A64BAA6F40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -257,6 +262,31 @@ Global
 		{56AD55BD-E920-4DCF-AA6F-AA80A01C8B9B}.Release|x64.Build.0 = Release|Any CPU
 		{56AD55BD-E920-4DCF-AA6F-AA80A01C8B9B}.Release|x86.ActiveCfg = Release|Any CPU
 		{56AD55BD-E920-4DCF-AA6F-AA80A01C8B9B}.Release|x86.Build.0 = Release|Any CPU
+		{B6AD8C32-BAE9-4907-9C98-48A64BAA6F40}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{3B94690F-23E8-4719-BADC-7B40A0644728}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{DEFBD85D-7F9F-4EC0-8E1B-A9BC3C145841}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{2D41F6EB-8B4F-4155-8135-1EE1B8F9F8A1}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{F7D543B5-98BC-48B1-AE0A-677EF8E12E90}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{8DA40A27-D185-48C8-B8FE-00C86143A4F6}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{80C3BF08-9512-410B-8F42-905F20D40835}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{C87BC1E3-BF0F-494A-8863-D6442F5A7E27}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{90D763FB-0027-48E8-A3BD-98EA705442B3}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{645462B2-6AAB-47BE-B774-42DFE168FB8C}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{59FBFFBD-43A0-4AF0-AACE-C1967158815F}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{9374DB0C-D3DE-454B-AC74-B9B2D036F241}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{D9BC796D-0A6E-4604-A7C2-E03A02A54CF7}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{BECAC457-DA31-4F81-908B-3BB16F4AB9DA}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{70B63B3C-D4B5-4554-A969-45EEE86ECA39}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{4A9AF9ED-5F46-402E-8FDF-E75E726239DD}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{56AD55BD-E920-4DCF-AA6F-AA80A01C8B9B}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Debug|x64.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Debug|x86.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Release|x64.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Release|x86.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Installer|Any CPU.ActiveCfg = Release|Any CPU
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC}.Installer|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -279,5 +309,6 @@ Global
 		{70B63B3C-D4B5-4554-A969-45EEE86ECA39} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{4A9AF9ED-5F46-402E-8FDF-E75E726239DD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{56AD55BD-E920-4DCF-AA6F-AA80A01C8B9B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{B130C7C4-3A94-4AF7-A122-25789D5143AC} = {D24BB165-47AF-4272-86BC-01B4CF407F44}
 	EndGlobalSection
 EndGlobal

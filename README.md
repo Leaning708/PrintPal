@@ -215,6 +215,20 @@ msiexec.exe /f .\dist\PrintPal-1.0.1-win-x64\PrintPal-1.0.1-x64.msi /qn
 msiexec.exe /x .\dist\PrintPal-1.0.1-win-x64\PrintPal-1.0.1-x64.msi /qn /norestart
 ```
 
+一键构建 MSI（不必先手动发布）：
+
+```powershell
+dotnet build PrintPal.sln -c Installer                                  # 只构建 MSI 工程
+dotnet build .\packaging\PrintPal.Msi\PrintPal.Msi.wixproj -c Release   # 等价写法
+.\Build-Installer.cmd                                                   # 双击入口（内部调用发布脚本）
+```
+
+- `packaging/PrintPal.Msi` 已纳入解决方案，挂在 `packaging` 目录下；`Installer` 是专用解决方案配置；
+- MSI 工程自身会先把 App/Service 自包含发布到 `dist\PrintPal-<版本>-win-x64\`、铺好 `installer\`
+  脚本，再交给 WiX 打包，所以单独构建这一个工程就能出 MSI；
+- 日常 `Debug`/`Release` 配置不构建 MSI，不会拖慢普通构建或测试；
+- 在 Visual Studio 中加载 `.wixproj` 需先安装 WiX 工具集 VS 扩展；未安装时命令行构建不受影响。
+
 - `PrintPal.Service`：LocalSystem，自动启动，数据 `C:\ProgramData\PrintPal`；
 - App/Service 发布到同一目录，共享 .NET 运行时；
 - WPF UI 探测服务并走 `ServiceAgentProxy`，关闭 UI 也能收任务；
