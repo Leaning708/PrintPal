@@ -3,9 +3,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Printing;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Shell;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using PrintPal.Agent;
@@ -25,8 +29,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<PrinterRow> _printerRows = new();
     private readonly ObservableCollection<RoutingRow> _routingRows = new();
     private readonly ObservableCollection<PriceRow> _priceRows = new();
-    private readonly ObservableCollection<BillingTagRow> _tagRows = new();
-    private readonly ObservableCollection<BillingSessionRow> _sessionRows = new();
+    private readonly ObservableCollection<BillChipRow> _parkedBills = new();
+    private readonly ObservableCollection<ClosedBillRow> _closedBillRows = new();
     private readonly ObservableCollection<JobRow> _historyJobRows = new();
     private readonly List<JobRow> _allJobs = new();
     private readonly DispatcherTimer _timer;
@@ -34,9 +38,12 @@ public partial class MainWindow : Window
     private List<Printer> _printers = new();
     private List<RoutingRule> _routingRules = new();
     private List<PriceRule> _priceRules = new();
-    private List<BillingSession> _closedSessions = new();
-    private BillingTag? _currentTag;
-    private BillingSession? _currentSession;
+    private List<Bill> _closedBills = new();
+    private List<BillSummary> _openBills = new();
+    private Bill? _currentBill;
+    private Guid? _historyBillId;
+    private bool _historyDetailsClosed = true;
+    private bool _suppressHistorySelection;
 
     private WinForms.NotifyIcon? _trayIcon;
     private bool _initialized;
@@ -44,8 +51,8 @@ public partial class MainWindow : Window
     private bool _balloonShown;
     private bool _suppressAutostart;
     private bool _pricesDirty;
-    private bool _syncingTags;
     private bool _applyingMode;
+    private bool _detailsClosed;
     private UiMode _mode = UiMode.Full;
 
     private enum UiMode
@@ -66,18 +73,21 @@ public partial class MainWindow : Window
         PrintersGrid.ItemsSource = _printerRows;
         RoutingGrid.ItemsSource = _routingRows;
         PricesGrid.ItemsSource = _priceRows;
-        HistoryGrid.ItemsSource = _sessionRows;
+        HistoryGrid.ItemsSource = _closedBillRows;
         HistoryJobsGrid.ItemsSource = _historyJobRows;
-        FullTagTabs.ItemsSource = _tagRows;
-        SimpleTagTabs.ItemsSource = _tagRows;
+        FullParkedBills.ItemsSource = _parkedBills;
+        SimpleParkedBills.ItemsSource = _parkedBills;
+        MinimalParkedBills.ItemsSource = _parkedBills;
 
         IppUriText.Text = agent.IppUri;
         DataDirText.Text = agent.Options.DataDirectory;
-        AgentStatusText.Text = $"IPP 服务：{agent.IppUri}";
+        AgentStatusText.Text = "打印服务运行中";
+        AgentUriText.Text = agent.IppUri;
         AutoForwardCheck.IsChecked = agent.Options.AutoForward;
 
         var version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.1";
         VersionText.Text = $"PrintPal {version}";
+        StatusVersionText.Text = $"PrintPal {version}";
 
         _suppressAutostart = true;
         AutostartCheck.IsChecked = AutostartService.IsEnabled();
@@ -93,8 +103,14 @@ public partial class MainWindow : Window
             {
                 HideToTray();
             }
+
+            UpdateMaximizeGlyph();
         };
         LocationChanged += (_, _) => SaveModePosition();
+
+        ApplyPage(0);
+
+
     }
 
     public async Task InitializeAsync()
@@ -169,6 +185,93 @@ public partial class MainWindow : Window
         Activate();
     }
 
+    private void NavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PageTitleText is null || JobsPage is null || NavList.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        ApplyPage(NavList.SelectedIndex);
+    }
+
+    private void ApplyPage(int index)
+    {
+        if (JobsPage is null)
+        {
+            return;
+        }
+
+        BillingStrip.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
+        JobsPage.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
+        HistoryPage.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
+        PrintersPage.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
+        RoutingPage.Visibility = index == 3 ? Visibility.Visible : Visibility.Collapsed;
+        PricesPage.Visibility = index == 4 ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPage.Visibility = index == 5 ? Visibility.Visible : Visibility.Collapsed;
+
+        (PageTitleText.Text, PageSubtitleText.Text) = index switch
+        {
+            1 => ("历史结账", "按账单归档的结账记录"),
+            2 => ("打印机", "维护 IPP 与 Raw 9100 目标"),
+            3 => ("路由规则", "按纸张、颜色、单双面自动分流"),
+            4 => ("价格表", "按张计价，保存后立即生效"),
+            5 => ("设置", "服务、数据与启动项"),
+            _ => ("打印记录", "实时台账与转发状态"),
+        };
+
+    }
+
+    private void MainSurface_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is Border border && border.ActualWidth > 0 && border.ActualHeight > 0)
+        {
+            // 外层 DWM 圆角 8 px − 内缩 6 px = 同心 2 px，保证深色边框四边等宽。
+            border.Clip = new RectangleGeometry(
+                new Rect(0, 0, border.ActualWidth, border.ActualHeight),
+                2,
+                2);
+        }
+    }
+
+    // 卡片内的表格行/空状态遮罩是不透明矩形，会把 CardBorder 的圆角盖掉，按圆角裁剪卡片内容。
+    private void ClipCardCorners(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is Border border && border.ActualWidth > 0 && border.ActualHeight > 0)
+        {
+            var radius = border.CornerRadius.TopLeft;
+            border.Clip = new RectangleGeometry(
+                new Rect(0, 0, border.ActualWidth, border.ActualHeight),
+                radius,
+                radius);
+        }
+    }
+
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        UpdateMaximizeGlyph();
+    }
+
+    private void UpdateMaximizeGlyph()
+    {
+        var glyph = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        if (FullMaximizeGlyph is not null)
+        {
+            FullMaximizeGlyph.Text = glyph;
+        }
+
+        if (SimpleMaximizeGlyph is not null)
+        {
+            SimpleMaximizeGlyph.Text = glyph;
+        }
+    }
+
     private async void Refresh_Click(object sender, RoutedEventArgs e)
     {
         await ReloadAsync();
@@ -187,40 +290,64 @@ public partial class MainWindow : Window
         try
         {
             var selectedJobId = (JobsGrid.SelectedItem as JobRow)?.Job.Id;
-            var billing = await _agent.Database.EnsureActiveBillingContextAsync();
-            _currentTag = billing.Tag;
-            _currentSession = billing.Session;
+            var selectedBillId = (HistoryGrid.SelectedItem as ClosedBillRow)?.Bill.Id;
+            var selectedPrinterId = (PrintersGrid.SelectedItem as PrinterRow)?.Printer.Id;
+            var selectedRoutingId = (RoutingGrid.SelectedItem as RoutingRow)?.Rule.Id;
+            var jobsScroll = GetScrollViewer(JobsGrid);
+            var simpleJobsScroll = GetScrollViewer(SimpleJobsGrid);
+            var historyScroll = GetScrollViewer(HistoryGrid);
+            var printersScroll = GetScrollViewer(PrintersGrid);
+            var routingScroll = GetScrollViewer(RoutingGrid);
+            var pricesScroll = GetScrollViewer(PricesGrid);
+            var jobsOffset = jobsScroll?.VerticalOffset ?? 0;
+            var jobsHOffset = jobsScroll?.HorizontalOffset ?? 0;
+            var simpleJobsOffset = simpleJobsScroll?.VerticalOffset ?? 0;
+            var simpleJobsHOffset = simpleJobsScroll?.HorizontalOffset ?? 0;
+            var historyOffset = historyScroll?.VerticalOffset ?? 0;
+            var historyHOffset = historyScroll?.HorizontalOffset ?? 0;
+            var printersOffset = printersScroll?.VerticalOffset ?? 0;
+            var printersHOffset = printersScroll?.HorizontalOffset ?? 0;
+            var routingOffset = routingScroll?.VerticalOffset ?? 0;
+            var routingHOffset = routingScroll?.HorizontalOffset ?? 0;
+            var pricesOffset = pricesScroll?.VerticalOffset ?? 0;
+            var pricesHOffset = pricesScroll?.HorizontalOffset ?? 0;
+            var bill = await _agent.Database.EnsureActiveBillAsync();
+            _currentBill = bill;
 
-            var tagsTask = _agent.Database.GetBillingTagsAsync();
-            var jobsTask = _agent.Database.GetSessionJobsAsync(_currentSession.Id);
+            var (from, to) = GetHistoryRange();
+            var jobsTask = _agent.Database.GetBillJobsAsync(bill.Id);
+            var openBillsTask = _agent.Database.GetOpenBillsAsync();
             var printersTask = _agent.Database.GetPrintersAsync();
             var routingTask = _agent.Database.GetRoutingRulesAsync();
             var pricesTask = _agent.Database.GetPriceRulesAsync();
-            var sessionsTask = _agent.Database.GetClosedSessionsAsync(null, null, null, 200);
+            var closedBillsTask = _agent.Database.GetClosedBillsAsync(from, to);
 
-            await Task.WhenAll(tagsTask, jobsTask, printersTask, routingTask, pricesTask, sessionsTask);
+            await Task.WhenAll(jobsTask, openBillsTask, printersTask, routingTask, pricesTask, closedBillsTask);
 
-            var tags = await tagsTask;
             var jobs = await jobsTask;
+            _openBills = (await openBillsTask).ToList();
             _printers = (await printersTask).ToList();
             _routingRules = (await routingTask).ToList();
             _priceRules = (await pricesTask).ToList();
-            _closedSessions = (await sessionsTask).ToList();
+            _closedBills = (await closedBillsTask).ToList();
 
-            _tagRows.Clear();
-            foreach (var tag in tags)
-            {
-                _tagRows.Add(new BillingTagRow(tag));
-            }
+            SyncParkedBills();
 
             var printerNames = _printers.ToDictionary(printer => printer.Id, printer => printer.Name);
             _allJobs.Clear();
-            _allJobs.AddRange(jobs.Select(job => new JobRow(job, printerNames)));
+            _allJobs.AddRange(jobs
+                .OrderByDescending(job => job.CreatedAtUtc)
+                .Select(job => new JobRow(job, printerNames)));
 
             _printerRows.Clear();
             foreach (var printer in _printers)
             {
                 _printerRows.Add(new PrinterRow(printer));
+            }
+
+            if (selectedPrinterId is Guid printerId)
+            {
+                PrintersGrid.SelectedItem = _printerRows.FirstOrDefault(row => row.Printer.Id == printerId);
             }
 
             _routingRows.Clear();
@@ -229,27 +356,38 @@ public partial class MainWindow : Window
                 _routingRows.Add(new RoutingRow(rule, printerNames));
             }
 
-            _priceRows.Clear();
+            if (selectedRoutingId is Guid routingId)
+            {
+                RoutingGrid.SelectedItem = _routingRows.FirstOrDefault(row => row.Rule.Id == routingId);
+            }
+
             if (!_pricesDirty)
             {
+                _priceRows.Clear();
                 foreach (var rule in _priceRules)
                 {
                     _priceRows.Add(new PriceRow(rule));
                 }
             }
 
-            _sessionRows.Clear();
-            foreach (var session in _closedSessions)
-            {
-                _sessionRows.Add(new BillingSessionRow(session));
-            }
+            ApplyHistoryFilter(selectedBillId);
 
             ApplyFilters(selectJobId: selectedJobId);
-            SyncTagSelection();
             UpdateBillingChrome();
 
-            StatusBarText.Text = $"最后刷新 {DateTime.Now:HH:mm:ss} · 当前标签 {jobs.Count} 条记录";
-            SimpleStatusText.Text = StatusBarText.Text;
+            StatusBarText.Text = $"最后刷新 {DateTime.Now:HH:mm:ss} · 当前账单 {jobs.Count} 条记录";
+
+            _ = Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    RestoreScrollOffset(JobsGrid, jobsOffset, jobsHOffset);
+                    RestoreScrollOffset(SimpleJobsGrid, simpleJobsOffset, simpleJobsHOffset);
+                    RestoreScrollOffset(HistoryGrid, historyOffset, historyHOffset);
+                    RestoreScrollOffset(PrintersGrid, printersOffset, printersHOffset);
+                    RestoreScrollOffset(RoutingGrid, routingOffset, routingHOffset);
+                    RestoreScrollOffset(PricesGrid, pricesOffset, pricesHOffset);
+                }),
+                DispatcherPriority.Loaded);
         }
         catch (Exception ex)
         {
@@ -264,51 +402,188 @@ public partial class MainWindow : Window
 
     private void UpdateBillingChrome()
     {
-        if (_currentTag is null)
-        {
-            return;
-        }
-
         var amount = _allJobs.Sum(row => row.Job.AmountCents);
         var count = _allJobs.Count;
+        var sheets = _allJobs.Sum(row => row.Job.TotalSheets);
         var amountText = Money.FormatCents(amount);
+        var parked = _parkedBills.Count;
+        var name = _currentBill?.Name ?? "未开单";
 
-        FullCurrentTagText.Text = $"当前标签：{_currentTag.Name}";
+        FullBillNameText.Text = name;
+        FullBillMetaText.Text = $"{amountText} · {count} 单 · {sheets} 张";
         FullAmountText.Text = amountText;
-        SimpleCurrentTagText.Text = $"当前标签：{_currentTag.Name}";
+        JobsNavCountText.Text = count.ToString();
+
+        SimpleCurrentTagText.Text = $"当前账单：{name}";
         SimpleAmountText.Text = amountText;
-        SimpleCountText.Text = $"本次 {count} 单";
-        MinimalTagNameText.Text = _currentTag.Name;
+
+        MinimalBillNameText.Text = name;
         MinimalAmountText.Text = amountText;
-        MinimalCountText.Text = $"{count} 单";
+
+        FullParkedCaptionText.Text = parked == 0 ? "暂无挂起账单" : $"已挂起 {parked}";
+        SimpleParkedCaptionText.Text = parked == 0 ? "暂无挂起账单" : $"已挂起 {parked}";
+        MinimalParkedPanel.Visibility = parked == 0 ? Visibility.Collapsed : Visibility.Visible;
+        MinimalParkedCaptionText.Text = $"挂起 {parked}";
+
+        var hasJobs = count > 0;
+        FullParkButton.IsEnabled = hasJobs;
+        FullCheckoutButton.IsEnabled = hasJobs;
+        SimpleParkButton.IsEnabled = hasJobs;
+        SimpleCheckoutButton.IsEnabled = hasJobs;
+        MinimalParkButton.IsEnabled = hasJobs;
+        MinimalCheckoutButton.IsEnabled = hasJobs;
     }
 
-    private void SyncTagSelection()
+    // ------------------------------------------------------------------ history filter / details
+
+    /// <summary>
+    /// 挂起账单 chip 每 2 秒刷新一次；没有变化时不重建集合，
+    /// 否则容器会被反复断开，点击（包括 UI 自动化）会落到已断开的元素上。
+    /// </summary>
+    private void SyncParkedBills()
     {
-        if (_currentTag is null)
+        var parked = _openBills.Where(item => item.Status == BillStatus.Parked).ToList();
+
+        var unchanged = parked.Count == _parkedBills.Count;
+        if (unchanged)
+        {
+            for (var i = 0; i < parked.Count; i++)
+            {
+                var current = _parkedBills[i].Summary;
+                var next = parked[i];
+                if (current.Id != next.Id ||
+                    current.Name != next.Name ||
+                    current.AmountCents != next.AmountCents ||
+                    current.JobCount != next.JobCount ||
+                    current.ParkedAtUtc != next.ParkedAtUtc)
+                {
+                    unchanged = false;
+                    break;
+                }
+            }
+        }
+
+        if (unchanged)
         {
             return;
         }
 
-        var row = _tagRows.FirstOrDefault(item => item.Tag.Id == _currentTag.Id);
-        if (row is null)
+        _parkedBills.Clear();
+        foreach (var summary in parked)
         {
-            return;
+            _parkedBills.Add(new BillChipRow(summary));
         }
+    }
 
-        _syncingTags = true;
+    private (DateTimeOffset? From, DateTimeOffset? To) GetHistoryRange()
+    {
+        var now = DateTimeOffset.Now;
+        var todayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
+
+        return HistoryRangeCombo.SelectedIndex switch
+        {
+            1 => (todayStart, null),
+            2 => (todayStart.AddDays(-6), null),
+            3 => (todayStart.AddDays(-29), null),
+            _ => (null, null),
+        };
+    }
+
+    private void ApplyHistoryFilter(Guid? selectBillId)
+    {
+        var search = HistorySearchBox.Text.Trim();
+        var filtered = _closedBills
+            .Where(bill => MatchesHistorySearch(bill, search))
+            .ToList();
+
+        _suppressHistorySelection = true;
         try
         {
-            FullTagTabs.SelectedItem = row;
-            SimpleTagTabs.SelectedItem = row;
+            _closedBillRows.Clear();
+            foreach (var bill in filtered)
+            {
+                _closedBillRows.Add(new ClosedBillRow(bill));
+            }
+
+            if (selectBillId is Guid id)
+            {
+                var row = _closedBillRows.FirstOrDefault(item => item.Bill.Id == id);
+                if (row is not null)
+                {
+                    HistoryGrid.SelectedItem = row;
+                }
+            }
         }
         finally
         {
-            _syncingTags = false;
+            _suppressHistorySelection = false;
+        }
+
+        HistoryCountText.Text = filtered.Count >= 200
+            ? $"共 {filtered.Count} 条（仅显示最近 200 条）"
+            : $"共 {filtered.Count} 条";
+
+        UpdateHistoryDetailsPanel();
+    }
+
+    private static bool MatchesHistorySearch(Bill bill, string search)
+    {
+        if (search.Length == 0)
+        {
+            return true;
+        }
+
+        return bill.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+               (bill.Note?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+    }
+
+    private void UpdateHistoryDetailsPanel()
+    {
+        var visible = HistoryGrid.SelectedItem is ClosedBillRow && !_historyDetailsClosed;
+
+        HistoryDetailsCard.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        HistoryDetailsSpacerColumn.Width = new GridLength(visible ? 14 : 0);
+        HistoryDetailsColumn.MinWidth = visible ? 520 : 0;
+        HistoryDetailsColumn.MaxWidth = visible ? 660 : 0;
+        HistoryDetailsColumn.Width = visible ? new GridLength(0.42, GridUnitType.Star) : new GridLength(0);
+
+        if (!visible)
+        {
+            HistorySummaryText.Text = "选择左侧账单查看其中的打印记录";
         }
     }
 
-    private void ApplyFilters(Guid? selectJobId = null)
+    private async Task LoadHistoryJobsAsync(ClosedBillRow row)
+    {
+        var keepOffset = _historyBillId == row.Bill.Id;
+        var scroll = GetScrollViewer(HistoryJobsGrid);
+        var offset = keepOffset ? scroll?.VerticalOffset ?? 0 : 0;
+        var hOffset = keepOffset ? scroll?.HorizontalOffset ?? 0 : 0;
+        _historyBillId = row.Bill.Id;
+
+        HistorySummaryText.Text = $"{row.BillName} · {row.JobCount} 单 · {row.TotalPages} 页 · {row.AmountText}";
+
+        try
+        {
+            var jobs = await _agent.Database.GetBillJobsAsync(row.Bill.Id);
+            var printerNames = _printers.ToDictionary(printer => printer.Id, printer => printer.Name);
+            _historyJobRows.Clear();
+            foreach (var job in jobs.OrderByDescending(job => job.CreatedAtUtc))
+            {
+                _historyJobRows.Add(new JobRow(job, printerNames));
+            }
+
+            _ = Dispatcher.BeginInvoke(
+                new Action(() => RestoreScrollOffset(HistoryJobsGrid, offset, hOffset)),
+                DispatcherPriority.Loaded);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"读取历史任务失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ApplyFilters(Guid? selectJobId = null, bool scrollToSelection = false)
     {
         var filtered = _allJobs.AsEnumerable();
 
@@ -340,7 +615,7 @@ public partial class MainWindow : Window
             _jobRows.Add(row);
         }
 
-        FilterSummaryText.Text = $"{list.Count} 条";
+        FilterSummaryText.Text = $"共 {list.Count} 条";
 
         if (selectJobId is Guid id)
         {
@@ -348,26 +623,26 @@ public partial class MainWindow : Window
             if (selected is not null)
             {
                 JobsGrid.SelectedItem = selected;
-                JobsGrid.ScrollIntoView(selected);
+                if (scrollToSelection)
+                {
+                    JobsGrid.ScrollIntoView(selected);
+                }
             }
-        }
-
-        if (JobsGrid.SelectedItem is null && _jobRows.Count > 0)
-        {
-            JobsGrid.SelectedIndex = 0;
         }
 
         if (_jobRows.Count == 0)
         {
             JobDetailsBox.Text = "";
         }
+
+        UpdateJobDetailsPanel();
     }
 
     private void Filters_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_initialized)
         {
-            ApplyFilters();
+            ApplyFilters(scrollToSelection: true);
         }
     }
 
@@ -375,84 +650,104 @@ public partial class MainWindow : Window
     {
         if (_initialized)
         {
-            ApplyFilters();
+            ApplyFilters(scrollToSelection: true);
         }
     }
 
     private void JobsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         JobDetailsBox.Text = (JobsGrid.SelectedItem as JobRow)?.DetailsText ?? "";
+        UpdateJobDetailsPanel();
     }
 
-    private async void TagTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void UpdateJobDetailsPanel()
     {
-        if (_syncingTags || !_initialized || sender is not ListBox list)
+        var visible = JobsGrid.SelectedItem is JobRow && !_detailsClosed;
+
+        JobDetailsCard.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        JobDetailsSpacerColumn.Width = new GridLength(visible ? 14 : 0);
+        JobDetailsColumn.MinWidth = visible ? 310 : 0;
+        JobDetailsColumn.MaxWidth = visible ? 450 : 0;
+        JobDetailsColumn.Width = visible ? new GridLength(0.26, GridUnitType.Star) : new GridLength(0);
+    }
+
+    private void CloseJobDetails_Click(object sender, RoutedEventArgs e)
+    {
+        _detailsClosed = true;
+        UpdateJobDetailsPanel();
+    }
+
+    // Clicking a job row brings the closed details panel back.
+    private void JobsGrid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (!_detailsClosed || e.OriginalSource is not DependencyObject source)
         {
             return;
         }
 
-        if (list.SelectedItem is BillingTagRow row)
+        if (ItemsControl.ContainerFromElement(JobsGrid, source) is DataGridRow)
         {
-            await SelectTagAsync(row);
+            _detailsClosed = false;
+            UpdateJobDetailsPanel();
         }
     }
 
-
-    private async Task SelectTagAsync(BillingTagRow row)
+    private async void ParkBill_Click(object sender, RoutedEventArgs e)
     {
-        if (_currentTag?.Id == row.Tag.Id)
+        try
+        {
+            var parkedName = _currentBill?.Name ?? "";
+            var next = await _agent.Database.ParkActiveBillAsync();
+            await ReloadAsync();
+            StatusBarText.Text = $"「{parkedName}」已挂起 · 当前账单：{next.Name}";
+        }
+        catch (NoBillJobsException)
+        {
+            MessageBox.Show("当前账单还没有打印记录，不能挂起。", "PrintPal",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"挂起失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void ResumeBill_Click(object sender, RoutedEventArgs e)
+    {
+
+        if (sender is not Button { DataContext: BillChipRow chip })
         {
             return;
         }
 
         try
         {
-            var session = await _agent.Database.OpenSessionAsync(row.Tag.Id);
-            await SaveSettingAsync("activeBillingTagId", row.Tag.Id.ToString("D"));
-            await SaveSettingAsync("activeBillingSessionId", session.Id.ToString("D"));
-            _currentTag = row.Tag;
-            _currentSession = session;
+            var bill = await _agent.Database.ActivateBillAsync(chip.Id);
             await ReloadAsync();
+            StatusBarText.Text = $"已取回「{bill.Name}」";
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"切换标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"取回失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    private async void AddTag_Click(object sender, RoutedEventArgs e)
+    private void BillName_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        try
+        if (e.ClickCount == 2)
         {
-            var tags = await _agent.Database.GetBillingTagsAsync(includeArchived: true);
-            var next = tags.Count == 0 ? 1 : tags.Max(tag => tag.SequenceNumber) + 1;
-            var tag = new BillingTag
-            {
-                SequenceNumber = next,
-                Name = $"标签{next}",
-            };
-            await _agent.Database.SaveBillingTagAsync(tag);
-            var session = await _agent.Database.OpenSessionAsync(tag.Id);
-            await SaveSettingAsync("activeBillingTagId", tag.Id.ToString("D"));
-            await SaveSettingAsync("activeBillingSessionId", session.Id.ToString("D"));
-            _currentTag = tag;
-            _currentSession = session;
-            await ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"新建标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+            _ = RenameCurrentBillAsync();
         }
     }
 
-    private async void RenameTag_Click(object sender, RoutedEventArgs e)
+    private async Task RenameCurrentBillAsync()
     {
-        if (_currentTag is null)
+        if (_currentBill is null)
         {
             return;
         }
 
-        var dialog = new BillingTagEditWindow(_currentTag) { Owner = this };
+        var dialog = new BillEditWindow(_currentBill) { Owner = this };
         if (dialog.ShowDialog() != true)
         {
             return;
@@ -460,56 +755,24 @@ public partial class MainWindow : Window
 
         try
         {
-            await _agent.Database.SaveBillingTagAsync(dialog.EditedTag);
+            await _agent.Database.UpdateBillAsync(_currentBill.Id, dialog.BillName, dialog.Note);
             await ReloadAsync();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"保存标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private async void DeleteTag_Click(object sender, RoutedEventArgs e)
-    {
-        if (_currentTag is null || _currentSession is null)
-        {
-            return;
-        }
-
-        if (_allJobs.Count > 0)
-        {
-            MessageBox.Show("当前标签已有打印记录，请使用“结账”归档。", "PrintPal",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var confirm = MessageBox.Show($"删除空标签“{_currentTag.Name}”？", "PrintPal",
-            MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        try
-        {
-            await _agent.Database.CheckoutAndAdvanceAsync(_currentSession.Id, "删除空标签");
-            await ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"删除标签失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"保存账单失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private async void Checkout_Click(object sender, RoutedEventArgs e)
     {
-        if (_currentSession is null || _currentTag is null)
+        if (_currentBill is null || _allJobs.Count == 0)
         {
             return;
         }
 
         var confirm = MessageBox.Show(
-            $"结账“{_currentTag.Name}”？\n\n本次 {_allJobs.Count} 单，金额 {FullAmountText.Text}。\n结账后自动归档并切换到下一个标签。",
+            $"结账「{_currentBill.Name}」？\n\n本次 {_allJobs.Count} 单，金额 {FullAmountText.Text}。\n结账后自动归档，并取回最近挂起的账单。",
             "PrintPal",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
@@ -520,13 +783,11 @@ public partial class MainWindow : Window
 
         try
         {
-            var label = _currentTag.Name;
+            var label = _currentBill.Name;
             var amount = FullAmountText.Text;
-            var result = await _agent.Database.CheckoutAndAdvanceAsync(_currentSession.Id, null);
-            _currentTag = result.NextTag;
-            _currentSession = result.NextSession;
+            var result = await _agent.Database.CheckoutActiveBillAsync(null);
             await ReloadAsync();
-            MessageBox.Show($"“{label}”已结账：{amount}。\n当前标签：{_currentTag.Name}",
+            MessageBox.Show($"「{label}」已结账：{amount}。\n当前账单：{result.NextBill.Name}",
                 "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (CheckoutBlockedException ex)
@@ -542,46 +803,123 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void SwitchNextTag_Click(object sender, RoutedEventArgs e)
+    private async void MoveJob_Click(object sender, RoutedEventArgs e)
     {
-        if (_tagRows.Count == 0)
+        if (JobsGrid.SelectedItem is not JobRow row)
         {
+            MessageBox.Show("请先选择一条打印记录。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var index = _tagRows.ToList().FindIndex(row => row.Tag.Id == _currentTag?.Id);
-        var next = _tagRows[(index + 1 + _tagRows.Count) % _tagRows.Count];
-        await SelectTagAsync(next);
-    }
-
-    private async void HistoryGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (HistoryGrid.SelectedItem is not BillingSessionRow row)
+        if (row.Job.Status == JobStatus.Forwarding)
         {
-            _historyJobRows.Clear();
+            MessageBox.Show("任务正在转发，稍后再移动。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         try
         {
-            var jobs = await _agent.Database.GetSessionJobsAsync(row.Session.Id);
-            var printerNames = _printers.ToDictionary(printer => printer.Id, printer => printer.Name);
-            _historyJobRows.Clear();
-            foreach (var job in jobs)
+            var bills = await _agent.Database.GetOpenBillsAsync();
+            if (bills.Count <= 1)
             {
-                _historyJobRows.Add(new JobRow(job, printerNames));
+                var confirm = MessageBox.Show(
+                    "现在只有一张未结账账单。新建一张账单并把这条记录移过去？",
+                    "PrintPal", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                var moved = await _agent.Database.MoveJobAsync(row.Job.Id, null, createNewActive: true);
+                await ReloadAsync();
+                StatusBarText.Text = $"已移到「{moved.BillNameSnapshot}」";
+                return;
             }
+
+            var dialog = new MoveJobWindow(row.DocumentName, bills, _currentBill?.Id) { Owner = this };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var target = await _agent.Database.MoveJobAsync(row.Job.Id, dialog.TargetBillId, dialog.CreateNew);
+            await ReloadAsync();
+            StatusBarText.Text = $"已移到「{target.BillNameSnapshot}」";
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"读取历史任务失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"移动失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    private async void TagTabs_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private async void HistoryFilter_Changed(object sender, SelectionChangedEventArgs e)
     {
-        RenameTag_Click(sender, e);
-        await Task.CompletedTask;
+        if (!_initialized)
+        {
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private void HistorySearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+
+        var selected = (HistoryGrid.SelectedItem as ClosedBillRow)?.Bill.Id;
+        ApplyHistoryFilter(selected);
+    }
+
+    private async void HistoryRefresh_Click(object sender, RoutedEventArgs e) => await ReloadAsync();
+
+    private void CloseHistoryDetails_Click(object sender, RoutedEventArgs e)
+    {
+        _historyDetailsClosed = true;
+        UpdateHistoryDetailsPanel();
+    }
+
+    private async void HistoryGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressHistorySelection)
+        {
+            return;
+        }
+
+        if (HistoryGrid.SelectedItem is not ClosedBillRow row)
+        {
+            _historyBillId = null;
+            _historyJobRows.Clear();
+            UpdateHistoryDetailsPanel();
+            return;
+        }
+
+        _historyDetailsClosed = false;
+        await LoadHistoryJobsAsync(row);
+        UpdateHistoryDetailsPanel();
+    }
+
+    private void HistoryGrid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (!_historyDetailsClosed || e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        if (ItemsControl.ContainerFromElement(HistoryGrid, source) is not DataGridRow)
+        {
+            return;
+        }
+
+        _historyDetailsClosed = false;
+        UpdateHistoryDetailsPanel();
+
+        if (HistoryGrid.SelectedItem is ClosedBillRow row)
+        {
+            _ = LoadHistoryJobsAsync(row);
+        }
     }
 
     private static string JobStatusText(JobStatus status) => status switch
@@ -603,44 +941,44 @@ public partial class MainWindow : Window
 
     private async void MinimalMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Minimal);
 
-    private async void ModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void UpdateModeSwitchButtons()
     {
-        if (_applyingMode || !_initialized || sender is not ComboBox combo || combo.SelectedIndex < 0)
-        {
-            return;
-        }
-
-        var mode = combo.SelectedIndex switch
-        {
-            1 => UiMode.Simple,
-            2 => UiMode.Minimal,
-            _ => UiMode.Full,
-        };
-
-        await SetModeAsync(mode);
+        SetModeBar(FullModeFullButton, FullModeSimpleButton, FullModeMinimalButton);
+        SetModeBar(SimpleModeFullButton, SimpleModeSimpleButton, SimpleModeMinimalButton);
+        SetDarkModeBar(MinimalModeFullButton, MinimalModeSimpleButton, MinimalModeMinimalButton);
     }
 
-    private void SyncModeCombos()
+    private void SetModeBar(params Button[] buttons)
     {
-        var index = _mode switch
+        foreach (var button in buttons)
         {
-            UiMode.Simple => 1,
-            UiMode.Minimal => 2,
-            _ => 0,
-        };
-
-        FullModeCombo.SelectedIndex = index;
-        SimpleModeCombo.SelectedIndex = index;
-        MinimalModeCombo.SelectedIndex = index;
-    }
-
-    private void MinimalTagName_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 2)
-        {
-            RenameTag_Click(sender, e);
+            var active = ModeFromButton(button) == _mode;
+            button.Background = active ? (System.Windows.Media.Brush)FindResource("AccentSoftBrush") : System.Windows.Media.Brushes.Transparent;
+            button.Foreground = active ? (System.Windows.Media.Brush)FindResource("AccentDarkBrush") : (System.Windows.Media.Brush)FindResource("MutedBrush");
         }
     }
+
+    private void SetDarkModeBar(params Button[] buttons)
+    {
+        foreach (var button in buttons)
+        {
+            var active = ModeFromButton(button) == _mode;
+            button.Background = new System.Windows.Media.SolidColorBrush(
+                active
+                    ? System.Windows.Media.Color.FromRgb(0x1D, 0x4E, 0xD8)
+                    : System.Windows.Media.Color.FromRgb(0x1E, 0x29, 0x3B));
+            button.Foreground = active
+                ? System.Windows.Media.Brushes.White
+                : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x94, 0xA3, 0xB8));
+        }
+    }
+
+    private static UiMode ModeFromButton(Button button) => button.Tag switch
+    {
+        "Simple" => UiMode.Simple,
+        "Minimal" => UiMode.Minimal,
+        _ => UiMode.Full,
+    };
 
     private void CloseToTray_Click(object sender, RoutedEventArgs e) => HideToTray();
 
@@ -651,6 +989,15 @@ public partial class MainWindow : Window
             DragMove();
         }
         await Task.CompletedTask;
+    }
+
+    // Buttons and tag chips swallow their own mouse input, so this only fires on blank caption area.
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ButtonState == System.Windows.Input.MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
     }
 
     private async void TopmostToggle_Click(object sender, RoutedEventArgs e)
@@ -672,57 +1019,67 @@ public partial class MainWindow : Window
         {
             SaveModeBounds();
             _mode = mode;
-            SyncModeCombos();
+            UpdateModeSwitchButtons();
             FullLayout.Visibility = mode == UiMode.Full ? Visibility.Visible : Visibility.Collapsed;
             SimpleLayout.Visibility = mode == UiMode.Simple ? Visibility.Visible : Visibility.Collapsed;
             MinimalLayout.Visibility = mode == UiMode.Minimal ? Visibility.Visible : Visibility.Collapsed;
 
             if (mode == UiMode.Minimal)
             {
+                WindowState = WindowState.Normal;
                 WindowStyle = WindowStyle.None;
-                ResizeMode = ResizeMode.NoResize;
+                ResizeMode = ResizeMode.CanResize;
                 ShowInTaskbar = false;
-                Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#0F172A")!;
-                Width = 300;
-                Height = 168;
-                MinWidth = 300;
-                MinHeight = 168;
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x0B, 0x13, 0x22));
+                MinWidth = 316;
+                MinHeight = 186;
+                Width = 316;
+                Height = 186;
+                ConfigureWindowChrome(0, 0);
+                UpdateLayout();
                 await RestoreMinimalPositionAsync();
             }
             else
             {
-                WindowStyle = WindowStyle.SingleBorderWindow;
+                WindowState = WindowState.Normal;
+                WindowStyle = WindowStyle.None;
                 ResizeMode = ResizeMode.CanResize;
                 ShowInTaskbar = true;
-                Background = System.Windows.Media.Brushes.White;
-                MinWidth = 680;
-                MinHeight = 480;
+                Background = mode == UiMode.Full
+                    ? (System.Windows.Media.Brush)FindResource("SidebarBrush")
+                    : (System.Windows.Media.Brush)FindResource("PageBackgroundBrush");
+                MinWidth = mode == UiMode.Full ? 1200 : 760;
+                MinHeight = mode == UiMode.Full ? 620 : 500;
+                ConfigureWindowChrome(mode == UiMode.Full ? 78 : 58, 6);
 
                 if (mode == UiMode.Full)
                 {
-                    Width = await GetDoubleSettingAsync("fullWidth", 1400);
-                    Height = await GetDoubleSettingAsync("fullHeight", 880);
+                    Width = await GetDoubleSettingAsync("fullWidth", 1440);
+                    Height = await GetDoubleSettingAsync("fullHeight", 900);
                 }
                 else
                 {
-                    Width = await GetDoubleSettingAsync("simpleWidth", 800);
-                    Height = await GetDoubleSettingAsync("simpleHeight", 580);
-                }
-
-                if (mode == UiMode.Full)
-                {
-                    Left = await GetDoubleSettingAsync("fullLeft", Left);
-                    Top = await GetDoubleSettingAsync("fullTop", Top);
-                }
-                else
-                {
-                    Left = await GetDoubleSettingAsync("simpleLeft", Left);
-                    Top = await GetDoubleSettingAsync("simpleTop", Top);
+                    Width = await GetDoubleSettingAsync("simpleWidth", 940);
+                    Height = await GetDoubleSettingAsync("simpleHeight", 640);
                 }
             }
 
+            var workArea = SystemParameters.WorkArea;
+            var maxWidth = Math.Max(MinWidth, workArea.Width - 24);
+            var maxHeight = Math.Max(MinHeight, workArea.Height - 24);
+            Width = Math.Min(Math.Max(Width, MinWidth), maxWidth);
+            Height = Math.Min(Math.Max(Height, MinHeight), maxHeight);
+            if (mode != UiMode.Minimal)
+            {
+                // 切换到完整/简洁模式时居中于主屏工作区；极简模式保持右下角记忆位置。
+                Left = workArea.Left + (workArea.Width - Width) / 2;
+                Top = workArea.Top + (workArea.Height - Height) / 2;
+            }
+            UpdateLayout();
+
             Topmost = await GetBoolSettingAsync(TopmostKey(mode), mode == UiMode.Minimal);
             UpdateTopmostButtons();
+            UpdateMaximizeGlyph();
             if (persist)
             {
                 await SaveSettingAsync("uiMode", mode.ToString());
@@ -732,6 +1089,19 @@ public partial class MainWindow : Window
         {
             _applyingMode = false;
         }
+    }
+
+    private void ConfigureWindowChrome(double captionHeight, double resizeBorder)
+    {
+        var chrome = WindowChrome.GetWindowChrome(this);
+        if (chrome is null)
+        {
+            return;
+        }
+
+        chrome.CaptionHeight = captionHeight;
+        chrome.ResizeBorderThickness = new Thickness(resizeBorder);
+        chrome.UseAeroCaptionButtons = false;
     }
 
     private void SaveModeBounds()
@@ -749,12 +1119,31 @@ public partial class MainWindow : Window
         }
 
         var prefix = _mode == UiMode.Full ? "full" : "simple";
-        if (!double.IsNaN(Left) && !double.IsNaN(Top) && !double.IsNaN(Width) && !double.IsNaN(Height))
+        var left = Left;
+        var top = Top;
+        var width = Width;
+        var height = Height;
+
+        if (WindowState != WindowState.Normal)
         {
-            _ = SaveSettingAsync($"{prefix}Left", Left.ToString("0"));
-            _ = SaveSettingAsync($"{prefix}Top", Top.ToString("0"));
-            _ = SaveSettingAsync($"{prefix}Width", Width.ToString("0"));
-            _ = SaveSettingAsync($"{prefix}Height", Height.ToString("0"));
+            var restore = RestoreBounds;
+            if (restore.Width > 0 && restore.Height > 0)
+            {
+                left = restore.Left;
+                top = restore.Top;
+                width = restore.Width;
+                height = restore.Height;
+            }
+        }
+
+        if (!double.IsNaN(left) && !double.IsNaN(top) &&
+            !double.IsNaN(width) && !double.IsNaN(height) &&
+            width > 0 && height > 0)
+        {
+            _ = SaveSettingAsync($"{prefix}Left", left.ToString("0"));
+            _ = SaveSettingAsync($"{prefix}Top", top.ToString("0"));
+            _ = SaveSettingAsync($"{prefix}Width", width.ToString("0"));
+            _ = SaveSettingAsync($"{prefix}Height", height.ToString("0"));
         }
     }
 
@@ -801,10 +1190,14 @@ public partial class MainWindow : Window
 
     private void UpdateTopmostButtons()
     {
-        var text = Topmost ? "置顶：开" : "置顶：关";
-        FullPinButton.Content = text;
-        SimplePinButton.Content = text;
-        MinimalPinButton.Content = text;
+        const string pinGlyph = "\uE718";
+        const string pinnedGlyph = "\uE840";
+
+        foreach (var button in new[] { FullPinButton, SimplePinButton, MinimalPinButton })
+        {
+            button.Content = Topmost ? pinnedGlyph : pinGlyph;
+            button.ToolTip = Topmost ? "取消置顶" : "置顶";
+        }
     }
 
     private static string TopmostKey(UiMode mode) => mode switch
@@ -832,7 +1225,9 @@ public partial class MainWindow : Window
         try
         {
             var value = await _agent.Database.GetSettingAsync(key);
-            return double.TryParse(value, out var parsed) ? parsed : fallback;
+            return double.TryParse(value, out var parsed) && !double.IsNaN(parsed) && !double.IsInfinity(parsed)
+                ? parsed
+                : fallback;
         }
         catch
         {
@@ -1349,6 +1744,162 @@ public partial class MainWindow : Window
         {
             MessageBox.Show($"打开目录失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private static ScrollViewer? GetScrollViewer(DependencyObject element)
+    {
+        if (element is ScrollViewer viewer)
+        {
+            return viewer;
+        }
+
+        var count = VisualTreeHelper.GetChildrenCount(element);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(element, i);
+            var nested = GetScrollViewer(child);
+            if (nested is not null)
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
+    private static void RestoreScrollOffset(DependencyObject grid, double verticalOffset, double horizontalOffset = 0)
+    {
+        var viewer = GetScrollViewer(grid);
+        if (viewer is null)
+        {
+            return;
+        }
+
+        if (verticalOffset > 0)
+        {
+            viewer.ScrollToVerticalOffset(verticalOffset);
+        }
+
+        if (horizontalOffset > 0)
+        {
+            viewer.ScrollToHorizontalOffset(horizontalOffset);
+        }
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+
+        var handle = new WindowInteropHelper(this).Handle;
+        HwndSource.FromHwnd(handle)?.AddHook(WindowMessageHook);
+        TryEnableRoundedCorners(handle);
+    }
+
+    private static void TryEnableRoundedCorners(IntPtr hwnd)
+    {
+        try
+        {
+            // DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2.
+            // Windows 10 ignores the attribute; Windows 11 applies it.
+            const int CornerPreference = 33;
+            var preference = 2;
+            DwmSetWindowAttribute(hwnd, CornerPreference, ref preference, sizeof(int));
+        }
+        catch (DllNotFoundException)
+        {
+        }
+        catch (EntryPointNotFoundException)
+        {
+        }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    private static IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WmGetMinMaxInfo = 0x0024;
+
+        if (message == WmGetMinMaxInfo)
+        {
+            ApplyMaximizeWorkArea(hwnd, lParam);
+            handled = true;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private static void ApplyMaximizeWorkArea(IntPtr hwnd, IntPtr lParam)
+    {
+        const int MonitorDefaultToNearest = 2;
+
+        var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var monitorInfo = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(monitor, ref monitorInfo))
+        {
+            return;
+        }
+
+        var minMax = Marshal.PtrToStructure<MinMaxInfo>(lParam);
+        var work = monitorInfo.WorkArea;
+        var full = monitorInfo.Monitor;
+
+        // WindowChrome adds an invisible sizing frame around a borderless window.
+        // Align the maximized window to the monitor work area instead of covering the taskbar.
+        minMax.MaxPosition.X = work.Left - full.Left;
+        minMax.MaxPosition.Y = work.Top - full.Top;
+        minMax.MaxSize.X = work.Right - work.Left;
+        minMax.MaxSize.Y = work.Bottom - work.Top;
+        minMax.MaxTrackSize.X = full.Right - full.Left;
+        minMax.MaxTrackSize.Y = full.Bottom - full.Top;
+
+        Marshal.StructureToPtr(minMax, lParam, true);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, int flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MinMaxInfo
+    {
+        public NativePoint Reserved;
+        public NativePoint MaxSize;
+        public NativePoint MaxPosition;
+        public NativePoint MinTrackSize;
+        public NativePoint MaxTrackSize;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfo
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect WorkArea;
+        public uint Flags;
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

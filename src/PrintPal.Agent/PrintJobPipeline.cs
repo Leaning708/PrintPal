@@ -38,7 +38,7 @@ public sealed class PrintJobPipeline
         var stored = await _documentStore.SaveAsync(context.Document, context.Format, cancellationToken)
             .ConfigureAwait(false);
 
-        var billing = await _database.EnsureActiveBillingContextAsync(cancellationToken).ConfigureAwait(false);
+        var bill = await _database.EnsureActiveBillAsync(cancellationToken).ConfigureAwait(false);
 
         var estimated = false;
 
@@ -87,9 +87,8 @@ public sealed class PrintJobPipeline
             DuplexMode = duplex,
             Copies = context.GetCopies(),
             PageCount = stored.PageCount.Pages,
-            BillingTagId = billing.Tag.Id,
-            BillingSessionId = billing.Session.Id,
-            TagNameSnapshot = billing.Tag.Name,
+            BillId = bill.Id,
+            BillNameSnapshot = bill.Name,
             IsEstimated = estimated,
             RawAttributesJson = SerializeAttributes(context),
             Status = JobStatus.Captured,
@@ -153,7 +152,7 @@ public sealed class PrintJobPipeline
         }
 
         Log(
-            $"JOB {job.Id} [{job.TagNameSnapshot}] {job.DocumentName} {job.PageCount}p x{job.Copies} " +
+            $"JOB {job.Id} [{job.BillNameSnapshot}] {job.DocumentName} {job.PageCount}p x{job.Copies} " +
             $"{job.PaperSize.Name} {job.ColorMode} {job.DuplexMode} = {Money.FormatCents(job.AmountCents)} " +
             $"-> {route.Printer.Name} [{job.Status}]");
 

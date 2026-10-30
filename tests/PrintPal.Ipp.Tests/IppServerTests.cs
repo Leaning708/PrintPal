@@ -61,6 +61,30 @@ public sealed class IppServerTests
     }
 
     [Fact]
+    public async Task Printer_attributes_advertise_margins_that_do_not_clip_wps_text()
+    {
+        var handler = new RecordingHandler();
+        await using var server = CreateServer(handler, out _);
+        await server.StartAsync();
+
+        var builder = new IppMessageBuilder(1, 1, IppOperation.GetPrinterAttributes, 1);
+        builder.BeginOperationAttributes();
+        builder.AddString(IppTag.Uri, "printer-uri", server.IppUri);
+        builder.AddString(IppTag.Charset, "attributes-charset", "utf-8");
+        builder.AddString(IppTag.NaturalLanguage, "attributes-natural-language", "en-us");
+
+        var response = await PostAsync(server, builder.End());
+
+        Assert.Equal(IppStatus.SuccessfulOk, response.StatusCode);
+        // 1/100 mm; WPS lays text out at 31.75 mm, so the printable area must start
+        // well inside that. 4233 (42.33 mm) made the driver clip the left edge.
+        Assert.Equal(423, response.GetInt("media-left-margin-supported"));
+        Assert.Equal(423, response.GetInt("media-right-margin-supported"));
+        Assert.Equal(423, response.GetInt("media-top-margin-supported"));
+        Assert.Equal(423, response.GetInt("media-bottom-margin-supported"));
+    }
+
+    [Fact]
     public async Task Print_job_reaches_handler_with_job_attributes()
     {
         var handler = new RecordingHandler();

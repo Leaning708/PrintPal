@@ -74,14 +74,11 @@ public sealed class PrintJob
 
     public string? StatusReason { get; set; }
 
-    /// <summary>Current billing tag at capture time; null only for legacy rows.</summary>
-    public Guid? BillingTagId { get; set; }
+    /// <summary>账单归属；null only for legacy rows captured before billing existed.</summary>
+    public Guid? BillId { get; set; }
 
-    /// <summary>Open billing session at capture time; null only for legacy rows.</summary>
-    public Guid? BillingSessionId { get; set; }
-
-    /// <summary>Tag name snapshot for history.</summary>
-    public string? TagNameSnapshot { get; set; }
+    /// <summary>账单名快照（归属在捕获瞬间确定，账单改名不回写历史任务）。</summary>
+    public string? BillNameSnapshot { get; set; }
 
     public bool IsEstimated { get; set; }
 

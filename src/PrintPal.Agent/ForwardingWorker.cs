@@ -139,10 +139,10 @@ public sealed class ForwardingWorker : IAsyncDisposable
         }
 
         // Legacy/rows without billing attribution must never be forwarded into a
-        // new tag session; the operator can inspect them from the legacy view.
-        if (job.BillingTagId is null || job.BillingSessionId is null)
+        // new bill; the operator can inspect them from the legacy view.
+        if (job.BillId is null)
         {
-            Log($"job {job.Id} has no billing tag/session; forwarding skipped");
+            Log($"job {job.Id} has no bill; forwarding skipped");
             return;
         }
 

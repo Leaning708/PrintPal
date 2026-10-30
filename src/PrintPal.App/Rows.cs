@@ -4,41 +4,55 @@ using PrintPal.Core;
 
 namespace PrintPal.App;
 
-public sealed class BillingTagRow
+public sealed class BillChipRow
 {
-    public BillingTagRow(BillingTag tag)
+    public BillChipRow(BillSummary summary)
     {
-        Tag = tag;
+        Summary = summary;
     }
 
-    public BillingTag Tag { get; }
+    public BillSummary Summary { get; }
 
-    public string Name => Tag.Name;
+    public Guid Id => Summary.Id;
 
-    public int SequenceNumber => Tag.SequenceNumber;
+    public string Name => Summary.Name;
+
+    public string ChipText => $"{Summary.Name}  {Money.FormatCents(Summary.AmountCents)}";
+
+    public string ToolTip
+    {
+        get
+        {
+            var parked = Summary.ParkedAtUtc is { } at ? $" · 挂起 {at.ToLocalTime():HH:mm}" : string.Empty;
+            return $"{Money.FormatCents(Summary.AmountCents)} · {Summary.JobCount} 单{parked}\n点击取回";
+        }
+    }
 }
 
-public sealed class BillingSessionRow
+public sealed class ClosedBillRow
 {
-    public BillingSessionRow(BillingSession session)
+    public ClosedBillRow(Bill bill)
     {
-        Session = session;
+        Bill = bill;
     }
 
-    public BillingSession Session { get; }
+    public Bill Bill { get; }
 
-    public string ClosedAtText => Session.ClosedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "";
+    public string ClosedDateText => Bill.ClosedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd") ?? "";
 
-    public string TagName => Session.TagNameSnapshot;
+    public string ClosedTimeText => Bill.ClosedAtUtc?.ToLocalTime().ToString("HH:mm") ?? "";
 
-    public int JobCount => Session.JobCount;
+    public string BillName => Bill.Name;
 
-    public int TotalPages => Session.TotalPages;
+    public int JobCount => Bill.JobCount;
 
-    public string AmountText => Money.FormatCents(Session.AmountCents);
+    public int TotalPages => Bill.TotalPages;
 
-    public string Note => Session.Note ?? "";
+    public string AmountText => Money.FormatCents(Bill.AmountCents);
+
+    public string Note => Bill.Note ?? "";
 }
+
 
 public sealed class JobRow
 {
@@ -54,6 +68,8 @@ public sealed class JobRow
 
     public string TimeText => Job.CreatedAtUtc.ToLocalTime().ToString("MM-dd HH:mm:ss");
 
+    public string TimeShortText => Job.CreatedAtUtc.ToLocalTime().ToString("MM-dd HH:mm");
+
     public string DocumentName => Job.DocumentName;
 
     public string UserName => Job.UserName;
@@ -67,6 +83,8 @@ public sealed class JobRow
     public int PageCount => Job.PageCount;
 
     public int Copies => Job.Copies;
+
+    public string SpecText => $"{PaperText} · {ColorText} · {DuplexText}";
 
     public string UnitPriceText => Money.FormatCents(Job.UnitPriceCents);
 

@@ -113,11 +113,15 @@ internal static class IppPrinterAttributes
             "media-left-margin",
             "media-right-margin");
 
-        // Windows' IPP parser expects these as plain integers, not ranges.
-        builder.AddInt(IppTag.Integer, "media-left-margin-supported", 4233);
-        builder.AddInt(IppTag.Integer, "media-right-margin-supported", 4233);
-        builder.AddInt(IppTag.Integer, "media-top-margin-supported", 4233);
-        builder.AddInt(IppTag.Integer, "media-bottom-margin-supported", 4233);
+        // Windows' IPP parser expects these as plain integers, in 1/100 mm.
+        // 423 = 4.23 mm (a normal hardware margin). The previous value 4233 was
+        // 42.33 mm, which made the IPP Class Driver clip everything inside the
+        // page margin; WPS lays text out at 31.75 mm and lost the left edge.
+        const int supportedMarginHundredthMm = 423;
+        builder.AddInt(IppTag.Integer, "media-left-margin-supported", supportedMarginHundredthMm);
+        builder.AddInt(IppTag.Integer, "media-right-margin-supported", supportedMarginHundredthMm);
+        builder.AddInt(IppTag.Integer, "media-top-margin-supported", supportedMarginHundredthMm);
+        builder.AddInt(IppTag.Integer, "media-bottom-margin-supported", supportedMarginHundredthMm);
 
         builder.AddString(IppTag.Keyword, "print-color-mode-default", defaultColor.ToIppKeyword());
         var colorIndex = 0;

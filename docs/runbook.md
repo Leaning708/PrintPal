@@ -31,7 +31,7 @@ dotnet build PrintPal.sln -c Debug
 dotnet test PrintPal.sln -c Debug
 ```
 
-当前测试：Core 57 / Ipp 11 / Capture 10 / Storage 6 / Integration 14 = **98**。
+当前测试：Core 57 / Ipp 12 / Capture 10 / Storage 10 / Integration 14 = **103**。
 
 ---
 
@@ -293,6 +293,9 @@ Win10 的 `prnms012.inf` 在 DriverStore 中但被 `ExcludeFromSelect` 隐藏，
 ---
 
 ## 6. 诊断
+
+> 完整排查手册（链路定位、日志位置、问题索引、典型病例）见
+> [troubleshooting.md](troubleshooting.md)。下面是速查。
 
 ```powershell
 .\scripts\Diagnose-PrintPal.ps1

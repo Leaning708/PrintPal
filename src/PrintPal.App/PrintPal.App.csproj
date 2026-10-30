@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\PrintPal.ico" />
+    <Resource Include="Assets\PrintPal.png" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -31,6 +32,9 @@
     <AssemblyName>PrintPal.App</AssemblyName>
     <RootNamespace>PrintPal.App</RootNamespace>
     <ApplicationIcon>Assets\PrintPal.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WinForms is only used for the tray icon; WPF handles DPI awareness through app.manifest. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
 </Project>

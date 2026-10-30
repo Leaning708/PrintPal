@@ -2,485 +2,1637 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PrintPal"
-        Width="1400"
-        Height="880"
-        MinWidth="680"
-        MinHeight="480"
+        Width="1440"
+        Height="900"
+        MinWidth="1200"
+        MinHeight="620"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
+        Background="{StaticResource PageBackgroundBrush}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
         Icon="pack://application:,,,/Assets/PrintPal.ico">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="78"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
     <Window.Resources>
-        <Style x:Key="TagTabItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="12,6" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="Background" Value="#F1F5F9" />
-            <Setter Property="Foreground" Value="#334155" />
-            <Setter Property="BorderBrush" Value="#E2E8F0" />
-            <Setter Property="BorderThickness" Value="1" />
+        <!-- side navigation -->
+        <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Margin" Value="12,2" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#9AACC5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter />
+                        <Border x:Name="NavBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="9"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Border x:Name="NavIndicator"
+                                        Width="3" Height="18"
+                                        HorizontalAlignment="Left"
+                                        Background="{StaticResource AccentBrush}"
+                                        CornerRadius="0,2,2,0"
+                                        Visibility="Collapsed" />
+                                <ContentPresenter Margin="14,0,12,0" VerticalAlignment="Center" />
+                            </Grid>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="#182741" />
+                                <Setter Property="Foreground" Value="#E8EEF9" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="NavBorder" Property="Background" Value="#1C2C49" />
+                                <Setter TargetName="NavIndicator" Property="Visibility" Value="Visible" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="HeaderActionButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Foreground" Value="{StaticResource InkSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="MinimalIconButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Foreground" Value="#94A3B8" />
             <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#DBEAFE" />
-                    <Setter Property="Foreground" Value="#1D4ED8" />
-                    <Setter Property="BorderBrush" Value="#93C5FD" />
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1E293B" />
+                    <Setter Property="Foreground" Value="White" />
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- mode switch segmented buttons: icon glyphs styled by UpdateModeSwitchButtons -->
+        <Style x:Key="ModeSwitchButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
+        <Style x:Key="SmallModeSwitchButton" TargetType="Button" BasedOn="{StaticResource ModeSwitchButton}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <Style x:Key="DarkModeSwitchButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
+        <Style x:Key="NavIcon" TargetType="TextBlock" BasedOn="{StaticResource IconGlyph}">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="NavLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" />
+        </Style>
+
+        <!-- reusable cells -->
+        <DataTemplate x:Key="StatusPillTemplate">
+            <Border x:Name="Pill"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Background="#F1F5F9"
+                    CornerRadius="20"
+                    Padding="9,2">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="PillDot" Width="6" Height="6" Fill="#64748B" Margin="0,0,6,0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="PillText" Text="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding StatusText}" Value="已转发">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="在线">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="启用">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="转发中">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource AccentBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource AccentDarkBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="待转发">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="待确认">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="未路由">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="未知">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="未测试">
+                    <Setter TargetName="Pill" Property="Background" Value="#F1F5F9" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SoftMutedBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource MutedBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="失败">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource DangerBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="连接失败">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource DangerBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusText}" Value="停用">
+                    <Setter TargetName="Pill" Property="Background" Value="#F1F5F9" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SoftMutedBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource MutedBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <DataTemplate x:Key="JobDocumentCell">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding DocumentName}"
+                           FontSize="12.5"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource InkBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding DocumentName}" />
+                <TextBlock Text="{Binding UserName}"
+                           Margin="0,2,0,0"
+                           FontSize="10.5"
+                           Foreground="{StaticResource SoftMutedBrush}"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="PrinterNameCell">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="12.5"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource InkBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Name}" />
+                <TextBlock Text="{Binding ProtocolText}"
+                           Margin="0,2,0,0"
+                           FontSize="10.5"
+                           Foreground="{StaticResource SoftMutedBrush}" />
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="HistoryBillCell">
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding BillName}"
+                           FontSize="12.5"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource InkBrush}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Note}"
+                           Margin="0,2,0,0"
+                           FontSize="10.5"
+                           Foreground="{StaticResource SoftMutedBrush}"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- 挂起账单 chip -->
+        <DataTemplate x:Key="ParkedBillChipTemplate">
+            <Button Style="{StaticResource ParkedBillChipStyle}"
+                    Content="{Binding ChipText}"
+                    ToolTip="{Binding ToolTip}"
+                    Click="ResumeBill_Click" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="SmallParkedBillChipTemplate">
+            <Button Style="{StaticResource SmallParkedBillChipStyle}"
+                    Content="{Binding ChipText}"
+                    ToolTip="{Binding ToolTip}"
+                    Click="ResumeBill_Click" />
+        </DataTemplate>
+
+        <ItemsPanelTemplate x:Key="HorizontalChipPanel">
+            <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
+
+        <Style x:Key="AmountCellText" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+        </Style>
+
+        <Style x:Key="MutedCellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="FooterHint" TargetType="TextBlock" BasedOn="{StaticResource MutedText}">
+            <Setter Property="Margin" Value="0,10,0,0" />
         </Style>
     </Window.Resources>
 
     <Grid x:Name="WindowRoot">
         <!-- ======================================================== FULL -->
-        <Grid x:Name="FullLayout">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Grid x:Name="FullLayout" Background="{StaticResource SidebarBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="238" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <Border Grid.Row="0" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="22,12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="PrintPal" FontSize="22" FontWeight="Bold" Foreground="#0F172A" />
-                        <TextBlock Text="打印计费" Style="{StaticResource MutedText}" Margin="10,4,0,0" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="AgentStatusText" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="{StaticResource MutedBrush}" />
-                        <ComboBox x:Name="FullModeCombo" Width="88" Margin="0,0,6,0" SelectionChanged="ModeCombo_SelectionChanged">
-                            <ComboBoxItem Content="完整" />
-                            <ComboBoxItem Content="简洁" />
-                            <ComboBoxItem Content="极简" />
-                        </ComboBox>
-                        <Button x:Name="FullPinButton" Content="置顶：关" Click="TopmostToggle_Click" />
-                        <Button Content="刷新" Click="Refresh_Click" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,8">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="当前标签" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <ListBox x:Name="FullTagTabs" Height="36" Width="620"
-                             Background="Transparent" BorderThickness="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                             ItemContainerStyle="{StaticResource TagTabItemStyle}"
-                             DisplayMemberPath="Name"
-                             SelectionChanged="TagTabs_SelectionChanged"
-                             MouseDoubleClick="TagTabs_MouseDoubleClick">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                    </ListBox>
-                    <Button Content="改名" Click="RenameTag_Click" Margin="8,0,0,0" />
-                    <Button Content="删除" Style="{StaticResource DangerButton}" Click="DeleteTag_Click" />
-                </StackPanel>
-            </Border>
-
-            <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,8">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="FullCurrentTagText" Grid.Column="0" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Text="当前标签：标签1" />
-                    <TextBlock x:Name="FullAmountText" Grid.Column="1" FontSize="20" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Text="¥0.00" VerticalAlignment="Center" Margin="12,0" />
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="+ 新标签" Style="{StaticResource PrimaryButton}" Click="AddTag_Click" />
-                        <Button Content="结账" Style="{StaticResource PrimaryButton}" Click="Checkout_Click" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <TabControl Grid.Row="3" Margin="16,10,16,10" Background="Transparent" BorderThickness="0">
-                <TabItem Header="打印记录">
-                    <Grid Margin="4">
+            <!-- ================= sidebar -->
+            <Border Grid.Column="0" Background="{StaticResource SidebarBrush}">
+                    <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="72" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="12" Margin="0,0,0,8">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox x:Name="DateRangeCombo" Grid.Column="0" Width="100" SelectedIndex="0" SelectionChanged="Filters_Changed">
-                                    <ComboBoxItem Content="本标签" />
-                                </ComboBox>
-                                <ComboBox x:Name="StatusCombo" Grid.Column="1" Width="130" SelectedIndex="0" Margin="8,0,0,0" SelectionChanged="Filters_Changed">
-                                    <ComboBoxItem Content="全部状态" />
-                                    <ComboBoxItem Content="已转发" />
-                                    <ComboBoxItem Content="失败" />
-                                    <ComboBoxItem Content="待转发" />
-                                    <ComboBoxItem Content="待确认" />
-                                    <ComboBoxItem Content="未路由" />
-                                    <ComboBoxItem Content="未知" />
-                                </ComboBox>
-                                <TextBox x:Name="SearchBox" Grid.Column="2" Width="220" Margin="8,0,0,0" TextChanged="SearchBox_TextChanged" ToolTip="搜索文档名" />
-                                <Button Grid.Column="3" Content="刷新" Click="Refresh_Click" Margin="8,0,0,0" HorizontalAlignment="Left" />
-                                <TextBlock Grid.Column="4" x:Name="FilterSummaryText" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
-                            </Grid>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Top" Margin="20,20,0,0">
+                        <Border Width="36" Height="36" Background="White" CornerRadius="10" Padding="3">
+                            <Image Source="pack://application:,,,/Assets/PrintPal.png" Stretch="Uniform" />
                         </Border>
+                        <TextBlock Text="PrintPal"
+                                   Margin="11,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="White"
+                                   FontSize="16"
+                                   FontWeight="Bold" />
+                    </StackPanel>
 
-                        <DataGrid x:Name="JobsGrid" Grid.Row="1" SelectionChanged="JobsGrid_SelectionChanged">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="130" />
-                                <DataGridTextColumn Header="文档" Binding="{Binding DocumentName}" Width="*" MinWidth="160" />
-                                <DataGridTextColumn Header="纸张" Binding="{Binding PaperText}" Width="65" />
-                                <DataGridTextColumn Header="颜色" Binding="{Binding ColorText}" Width="65" />
-                                <DataGridTextColumn Header="单双面" Binding="{Binding DuplexText}" Width="95" />
-                                <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="55" />
-                                <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="55" />
-                                <DataGridTextColumn Header="金额" Binding="{Binding AmountText}" Width="85" />
-                                <DataGridTextColumn Header="目标打印机" Binding="{Binding TargetText}" Width="120" />
-                                <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="85" />
-                            </DataGrid.Columns>
-                        </DataGrid>
+                    <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                        <TextBlock Text="工作台"
+                                   Margin="26,0,0,8"
+                                   Foreground="#607394"
+                                   FontSize="10"
+                                   FontWeight="SemiBold" />
+                        <ListBox x:Name="NavList"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 SelectedIndex="0"
+                                 ItemContainerStyle="{StaticResource NavItemStyle}"
+                                 SelectionChanged="NavList_SelectionChanged">
+                            <ListBoxItem AutomationProperties.Name="打印记录">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE8A5;" Style="{StaticResource NavIcon}" />
+                                    <TextBlock Grid.Column="1" Text="打印记录" Style="{StaticResource NavLabel}" />
+                                    <Border Grid.Column="2" Background="#22314E" CornerRadius="9" Padding="7,1" VerticalAlignment="Center">
+                                        <TextBlock x:Name="JobsNavCountText" Text="0" Foreground="#C9D7EA" FontSize="10" />
+                                    </Border>
+                                </Grid>
+                            </ListBoxItem>
+                            <ListBoxItem AutomationProperties.Name="历史结账">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE81C;" Style="{StaticResource NavIcon}" />
+                                    <TextBlock Grid.Column="1" Text="历史结账" Style="{StaticResource NavLabel}" />
+                                </Grid>
+                            </ListBoxItem>
+                            <ListBoxItem AutomationProperties.Name="打印机">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE749;" Style="{StaticResource NavIcon}" />
+                                    <TextBlock Grid.Column="1" Text="打印机" Style="{StaticResource NavLabel}" />
+                                </Grid>
+                            </ListBoxItem>
+                            <ListBoxItem AutomationProperties.Name="路由规则">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE8AB;" Style="{StaticResource NavIcon}" />
+                                    <TextBlock Grid.Column="1" Text="路由规则" Style="{StaticResource NavLabel}" />
+                                </Grid>
+                            </ListBoxItem>
+                            <ListBoxItem AutomationProperties.Name="价格表">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE8C7;" Style="{StaticResource NavIcon}" />
+                                    <TextBlock Grid.Column="1" Text="价格表" Style="{StaticResource NavLabel}" />
+                                </Grid>
+                            </ListBoxItem>
+                            <ListBoxItem AutomationProperties.Name="设置">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="26" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE713;" Style="{StaticResource NavIcon}" />
+                                    <TextBlock Grid.Column="1" Text="设置" Style="{StaticResource NavLabel}" />
+                                </Grid>
+                            </ListBoxItem>
+                        </ListBox>
+                    </StackPanel>
 
-                        <Border Grid.Row="2" Style="{StaticResource CardBorder}" Margin="0,8,0,0" Padding="12">
+                    <StackPanel Grid.Row="2" Margin="16,0,16,16">
+                        <Border Background="{StaticResource SidebarCardBrush}" CornerRadius="12" Padding="14,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="7" Height="7" Fill="#22C55E" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="AgentStatusText"
+                                               Text="打印服务运行中"
+                                               Margin="8,0,0,0"
+                                               Foreground="White"
+                                               FontSize="12"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock x:Name="AgentUriText"
+                                           Text="—"
+                                           Margin="15,5,0,0"
+                                           Foreground="{StaticResource SidebarMutedBrush}"
+                                           FontSize="10"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ================= main -->
+            <Border x:Name="MainSurface"
+                    Grid.Column="1"
+                    Margin="6"
+                    Background="{StaticResource PageBackgroundBrush}"
+                    CornerRadius="2"
+                    ClipToBounds="True"
+                    SizeChanged="MainSurface_SizeChanged">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="72" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="32" />
+                    </Grid.RowDefinitions>
+
+                <!-- top bar -->
+                <Grid Grid.Row="0" Margin="26,0,26,0" Background="Transparent" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                    <StackPanel VerticalAlignment="Top" Margin="0,16,0,0">
+                        <TextBlock x:Name="PageTitleText" Text="打印记录" Style="{StaticResource PageTitle}" />
+                        <TextBlock x:Name="PageSubtitleText" Text="实时台账与转发状态" Style="{StaticResource PageSubtitle}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Border Background="{StaticResource CardBrush}"
+                                BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="2"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="FullModeFullButton"
+                                        Style="{StaticResource ModeSwitchButton}"
+                                        Content="&#xE90C;"
+                                        Tag="Full"
+                                        Click="FullMode_Click"
+                                        ToolTip="完整模式"
+                                        AutomationProperties.Name="完整模式" />
+                                <Button x:Name="FullModeSimpleButton"
+                                        Style="{StaticResource ModeSwitchButton}"
+                                        Content="&#xEA37;"
+                                        Tag="Simple"
+                                        Click="SimpleMode_Click"
+                                        ToolTip="简洁模式"
+                                        AutomationProperties.Name="简洁模式" />
+                                <Button x:Name="FullModeMinimalButton"
+                                        Style="{StaticResource ModeSwitchButton}"
+                                        Content="&#xE73F;"
+                                        Tag="Minimal"
+                                        Click="MinimalMode_Click"
+                                        ToolTip="极简模式"
+                                        AutomationProperties.Name="极简模式" />
+                            </StackPanel>
+                        </Border>
+                        <Button x:Name="FullPinButton"
+                                Style="{StaticResource HeaderActionButton}"
+                                Width="34"
+                                Height="34"
+                                Padding="0"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13"
+                                Content="&#xE718;"
+                                ToolTip="置顶"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="TopmostToggle_Click" />
+                        <Button Style="{StaticResource WindowControlButton}"
+                                Content="&#xE921;"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="MinimizeWindow_Click"
+                                ToolTip="最小化到托盘" />
+                        <Button x:Name="FullMaximizeButton"
+                                Style="{StaticResource WindowControlButton}"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="MaximizeWindow_Click"
+                                ToolTip="最大化">
+                            <TextBlock x:Name="FullMaximizeGlyph" Text="&#xE922;" Style="{StaticResource IconGlyph}" FontSize="10" />
+                        </Button>
+                        <Button Style="{StaticResource WindowCloseButton}"
+                                Content="&#xE8BB;"
+                                FontFamily="Segoe MDL2 Assets"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="CloseToTray_Click"
+                                ToolTip="隐藏到托盘" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- billing strip：只在「打印记录」页显示 -->
+                <Border x:Name="BillingStrip" Grid.Row="1" Style="{StaticResource CardBorder}" Margin="26,0,26,14" Padding="18,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" MinWidth="150">
+                            <TextBlock Text="当前账单" Style="{StaticResource SubtleText}" />
+                            <TextBlock x:Name="FullBillNameText"
+                                       Text="客户1"
+                                       FontSize="17"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource InkBrush}"
+                                       Margin="0,2,0,0"
+                                       MaxWidth="220"
+                                       TextTrimming="CharacterEllipsis"
+                                       Cursor="Hand"
+                                       ToolTip="双击改名"
+                                       MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
+                            <TextBlock x:Name="FullBillMetaText"
+                                       Text="¥0.00 · 0 单 · 0 张"
+                                       Style="{StaticResource MutedText}"
+                                       Margin="0,2,0,0" />
+                        </StackPanel>
+
+                        <Grid Grid.Column="1" Margin="22,0,18,0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="FullParkedCaptionText"
+                                       Grid.Column="0"
+                                       Text="暂无挂起账单"
+                                       Style="{StaticResource MutedText}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0" />
+                            <ScrollViewer Grid.Column="1"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled"
+                                          VerticalAlignment="Center">
+                                <ItemsControl x:Name="FullParkedBills"
+                                              ItemTemplate="{StaticResource ParkedBillChipTemplate}"
+                                              ItemsPanel="{StaticResource HorizontalChipPanel}" />
+                            </ScrollViewer>
+                        </Grid>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                <TextBlock Text="本单合计" Style="{StaticResource SubtleText}" HorizontalAlignment="Right" />
+                                <TextBlock x:Name="FullAmountText"
+                                           Text="¥0.00"
+                                           FontSize="26"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           HorizontalAlignment="Right" />
+                            </StackPanel>
+                            <Button x:Name="FullParkButton"
+                                    Content="挂起"
+                                    Height="44"
+                                    Width="88"
+                                    Margin="0,0,8,0"
+                                    ToolTip="把当前账单挂起，并给下一位客户开一张新账单"
+                                    Click="ParkBill_Click" />
+                            <Button x:Name="FullCheckoutButton"
+                                    Content="结账"
+                                    Style="{StaticResource PrimaryButton}"
+                                    Height="44"
+                                    Width="100"
+                                    Margin="0"
+                                    Click="Checkout_Click" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- pages -->
+                <Grid Grid.Row="2" Margin="26,0,26,12">
+                    <!-- ================= jobs -->
+                    <Grid x:Name="JobsPage">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition x:Name="JobDetailsSpacerColumn" Width="0" />
+                            <ColumnDefinition x:Name="JobDetailsColumn" Width="0" MinWidth="0" MaxWidth="0" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource CardBorder}" Padding="0" SizeChanged="ClipCardCorners">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
-                                <Grid Grid.Row="0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="任务详情" FontWeight="SemiBold" />
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                        <Button Content="转发/重试" Style="{StaticResource PrimaryButton}" Click="RetryJob_Click" />
-                                        <Button Content="选择目标转发" Click="ChooseTarget_Click" />
-                                        <Button Content="打开文档" Click="OpenDoc_Click" />
-                                        <Button Content="删除记录" Style="{StaticResource DangerButton}" Click="DeleteJob_Click" Margin="0" />
-                                    </StackPanel>
+
+                                <Border Grid.Row="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,11">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" MinWidth="120" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ComboBox x:Name="StatusCombo"
+                                                  Grid.Column="0"
+                                                  Width="122"
+                                                  Height="34"
+                                                  SelectedIndex="0"
+                                                  SelectionChanged="Filters_Changed">
+                                            <ComboBoxItem Content="全部状态" />
+                                            <ComboBoxItem Content="已转发" />
+                                            <ComboBoxItem Content="失败" />
+                                            <ComboBoxItem Content="待转发" />
+                                            <ComboBoxItem Content="待确认" />
+                                            <ComboBoxItem Content="未路由" />
+                                            <ComboBoxItem Content="未知" />
+                                        </ComboBox>
+                                        <Grid Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <TextBox x:Name="SearchBox"
+                                                     Height="34"
+                                                     Padding="33,0,10,0"
+                                                     TextChanged="SearchBox_TextChanged"
+                                                     ToolTip="搜索文档名或用户名" />
+                                            <TextBlock Text="&#xE721;"
+                                                       Style="{StaticResource IconGlyph}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SoftMutedBrush}"
+                                                       HorizontalAlignment="Left"
+                                                       Margin="11,0,0,0"
+                                                       IsHitTestVisible="False" />
+                                            <TextBlock Text="搜索文档或用户"
+                                                       Margin="33,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SoftMutedBrush}"
+                                                       IsHitTestVisible="False">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <TextBlock x:Name="FilterSummaryText"
+                                                       Text="0 条"
+                                                       Style="{StaticResource MutedText}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0" />
+                                            <Button Style="{StaticResource IconButton}"
+                                                    Content="&#xE72C;"
+                                                    ToolTip="刷新"
+                                                    Click="Refresh_Click" />
+                                            <Button Style="{StaticResource SubtleButton}"
+                                                    Height="34"
+                                                    Padding="10,0"
+                                                    Margin="4,0,0,0"
+                                                    Click="ExportCsv_Click"
+                                                    ToolTip="导出当前筛选结果">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE74E;" Style="{StaticResource IconGlyph}" FontSize="12" Margin="0,0,6,0" />
+                                                    <TextBlock Text="导出" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Grid.Row="1">
+                                    <DataGrid x:Name="JobsGrid" SelectionChanged="JobsGrid_SelectionChanged"
+                                              PreviewMouseLeftButtonDown="JobsGrid_PreviewMouseLeftButtonDown"
+                                              HorizontalScrollBarVisibility="Auto">
+                                        <DataGrid.Columns>
+                                            <DataGridTemplateColumn Header="文档" Width="*" MinWidth="160" CellTemplate="{StaticResource JobDocumentCell}" />
+                                            <DataGridTextColumn Header="规格" Binding="{Binding SpecText}" Width="158" MinWidth="111">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                        <Setter Property="ToolTip" Value="{Binding SpecText}" />
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}" />
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="56" MinWidth="44">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}" />
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="55" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTextColumn Header="目标打印机" Binding="{Binding TargetText}" Width="120" MinWidth="84">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                        <Setter Property="ToolTip" Value="{Binding TargetText}" />
+                                                    </Style>
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <Border Background="White" IsHitTestVisible="False" Margin="0,41,0,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasItems, ElementName=JobsGrid}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="330">
+                                            <Border Width="54" Height="54" CornerRadius="27" Background="{StaticResource AccentSoftBrush}" HorizontalAlignment="Center">
+                                                <TextBlock Text="&#xE749;" Style="{StaticResource IconGlyph}" FontSize="22" Foreground="{StaticResource AccentBrush}" />
+                                            </Border>
+                                            <TextBlock Text="还没有打印记录"
+                                                       Margin="0,14,0,0"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource InkSecondaryBrush}"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock Text="从 WPS / Word 打印到 PrintPal 虚拟打印机，任务会自动出现在这里。"
+                                                       Margin="0,6,0,0"
+                                                       FontSize="11.5"
+                                                       Foreground="{StaticResource MutedBrush}"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
-                                <TextBox x:Name="JobDetailsBox" Grid.Row="1" Height="110" Margin="0,8,0,0" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="#F8FAFC" />
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="JobDetailsCard" Grid.Column="2" Style="{StaticResource CardBorder}" Padding="0" Visibility="Collapsed" SizeChanged="ClipCardCorners">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,8,10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="任务详情" Style="{StaticResource CardTitle}" />
+                                            <TextBlock Text="完整计价与转发信息" Style="{StaticResource SubtleText}" Margin="8,2,0,0" />
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1"
+                                                Style="{StaticResource IconButton}"
+                                                Width="30"
+                                                Height="30"
+                                                Content="&#xE8BB;"
+                                                ToolTip="关闭详情面板"
+                                                Click="CloseJobDetails_Click" />
+                                    </Grid>
+                                </Border>
+
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="18,14,12,8">
+                                    <TextBox x:Name="JobDetailsBox"
+                                             Style="{StaticResource DetailsBox}"
+                                             Text=""
+                                             IsTabStop="False" />
+                                </ScrollViewer>
+
+                                <Border Grid.Row="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,12">
+                                    <StackPanel>
+                                        <Button Content="转发 / 重试"
+                                                Style="{StaticResource PrimaryButton}"
+                                                Height="38"
+                                                Margin="0,0,0,8"
+                                                Click="RetryJob_Click" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Content="选择目标"
+                                                    Margin="0,0,4,0"
+                                                    Height="34"
+                                                    Click="ChooseTarget_Click" />
+                                            <Button Grid.Column="1" Content="打开文档"
+                                                    Margin="4,0,0,0"
+                                                    Height="34"
+                                                    Click="OpenDoc_Click" />
+                                        </Grid>
+                                        <Button x:Name="MoveJobButton"
+                                                Content="移到其他账单"
+                                                Height="34"
+                                                Margin="0,8,0,0"
+                                                ToolTip="这条记录记错了账单时可以改到别的账单"
+                                                Click="MoveJob_Click" />
+                                        <Button Content="删除记录"
+                                                Style="{StaticResource DangerButton}"
+                                                Height="34"
+                                                Margin="0,8,0,0"
+                                                Click="DeleteJob_Click" />
+                                    </StackPanel>
+                                </Border>
                             </Grid>
                         </Border>
                     </Grid>
-                </TabItem>
 
-                <TabItem Header="历史结账">
-                    <Grid Margin="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="2*" />
-                        </Grid.RowDefinitions>
-                        <DataGrid x:Name="HistoryGrid" Grid.Row="0" SelectionChanged="HistoryGrid_SelectionChanged">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="结账时间" Binding="{Binding ClosedAtText}" Width="150" />
-                                <DataGridTextColumn Header="标签" Binding="{Binding TagName}" Width="*" />
-                                <DataGridTextColumn Header="单数" Binding="{Binding JobCount}" Width="65" />
-                                <DataGridTextColumn Header="页数" Binding="{Binding TotalPages}" Width="65" />
-                                <DataGridTextColumn Header="金额" Binding="{Binding AmountText}" Width="100" />
-                                <DataGridTextColumn Header="备注" Binding="{Binding Note}" Width="*" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <DataGrid x:Name="HistoryJobsGrid" Grid.Row="1" Margin="0,8,0,0">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="130" />
-                                <DataGridTextColumn Header="文档" Binding="{Binding DocumentName}" Width="*" />
-                                <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="60" />
-                                <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="60" />
-                                <DataGridTextColumn Header="金额" Binding="{Binding AmountText}" Width="90" />
-                                <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="90" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Grid>
-                </TabItem>
+                    <!-- ================= history -->
+                    <!-- ================= history -->
+                    <Grid x:Name="HistoryPage" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition x:Name="HistoryDetailsSpacerColumn" Width="0" />
+                            <ColumnDefinition x:Name="HistoryDetailsColumn" Width="0" MinWidth="0" MaxWidth="0" />
+                        </Grid.ColumnDefinitions>
 
-                <TabItem Header="打印机">
-                    <Grid Margin="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="12">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="新增打印机" Style="{StaticResource PrimaryButton}" Click="AddPrinter_Click" />
-                                <Button Content="编辑" Click="EditPrinter_Click" />
-                                <Button Content="测试连接" Click="TestPrinter_Click" />
-                                <Button Content="设为默认" Click="SetDefault_Click" />
-                                <Button Content="删除" Style="{StaticResource DangerButton}" Click="DeletePrinter_Click" Margin="0" />
-                            </StackPanel>
-                        </Border>
-                        <DataGrid x:Name="PrintersGrid" Grid.Row="1">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" MinWidth="160" />
-                                <DataGridTextColumn Header="协议" Binding="{Binding ProtocolText}" Width="90" />
-                                <DataGridTextColumn Header="地址" Binding="{Binding Address}" Width="*" MinWidth="220" />
-                                <DataGridTextColumn Header="格式/纸张" Binding="{Binding CapabilitiesText}" Width="*" MinWidth="180" />
-                                <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="80" />
-                                <DataGridTextColumn Header="启用" Binding="{Binding EnabledText}" Width="60" />
-                                <DataGridTextColumn Header="默认" Binding="{Binding DefaultText}" Width="60" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <TextBlock Grid.Row="2" Text="测试连接会读取 IPP 打印机能力（文档格式/纸张/颜色/双面）。" Style="{StaticResource MutedText}" Margin="0,8,0,0" />
-                    </Grid>
-                </TabItem>
+                        <Border Grid.Column="0" Style="{StaticResource CardBorder}" Padding="0" SizeChanged="ClipCardCorners">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
 
-                <TabItem Header="路由规则">
-                    <Grid Margin="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="12">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="新增规则" Style="{StaticResource PrimaryButton}" Click="AddRouting_Click" />
-                                <Button Content="编辑" Click="EditRouting_Click" />
-                                <Button Content="删除" Style="{StaticResource DangerButton}" Click="DeleteRouting_Click" Margin="0" />
-                            </StackPanel>
-                        </Border>
-                        <DataGrid x:Name="RoutingGrid" Grid.Row="1">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="优先级" Binding="{Binding PriorityText}" Width="65" />
-                                <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*" MinWidth="140" />
-                                <DataGridTextColumn Header="条件" Binding="{Binding ConditionsText}" Width="2*" MinWidth="260" />
-                                <DataGridTextColumn Header="目标打印机" Binding="{Binding TargetText}" Width="*" MinWidth="140" />
-                                <DataGridTextColumn Header="启用" Binding="{Binding EnabledText}" Width="60" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <TextBlock Grid.Row="2" Text="条件按 AND 组合；同类多值按 OR；空条件 = 任意。优先级越小越先匹配。" Style="{StaticResource MutedText}" Margin="0,8,0,0" />
-                    </Grid>
-                </TabItem>
-
-                <TabItem Header="价格表">
-                    <Grid Margin="4">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="12">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="保存价格" Style="{StaticResource PrimaryButton}" Click="SavePrices_Click" />
-                                <TextBlock Text="单位：元/张。双面价是一张纸两面的价格；双面奇数页最后一张按单面价。" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
-                            </StackPanel>
-                        </Border>
-                        <DataGrid x:Name="PricesGrid" Grid.Row="1" IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                                  AutoGenerateColumns="False" BeginningEdit="PricesGrid_BeginningEdit"
-                                  PreviewKeyDown="PricesGrid_PreviewKeyDown">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="纸张" Binding="{Binding PaperDisplay}" Width="120" IsReadOnly="True" />
-                                <DataGridTextColumn Header="颜色" Binding="{Binding ColorDisplay}" Width="100" IsReadOnly="True" />
-                                <DataGridTextColumn Header="单面价 / 张" Binding="{Binding SimplexYuan, StringFormat=0.00}" Width="120" />
-                                <DataGridTextColumn Header="双面价 / 张" Binding="{Binding DuplexYuan, StringFormat=0.00}" Width="120" />
-                                <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}" Width="70" />
-                                <DataGridTextColumn Header="优先级" Binding="{Binding PriorityText}" Width="80" IsReadOnly="True" />
-                            </DataGrid.Columns>
-                        </DataGrid>
-                        <TextBlock Grid.Row="2" Text="修改后点击保存价格。金额按分存储，显示为元。" Style="{StaticResource MutedText}" Margin="0,8,0,0" />
-                    </Grid>
-                </TabItem>
-
-                <TabItem Header="设置">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="4" MaxWidth="900" HorizontalAlignment="Left">
-                            <Border Style="{StaticResource CardBorder}">
-                                <StackPanel>
-                                    <TextBlock Text="后台服务" Style="{StaticResource SectionTitle}" />
-                                    <TextBlock x:Name="IppUriText" Text="—" FontFamily="Consolas" Margin="0,2,0,8" />
-                                    <TextBlock x:Name="DataDirText" Text="—" FontFamily="Consolas" Margin="0,2,0,8" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="打开数据目录" Click="OpenData_Click" />
-                                        <Button Content="打开日志" Click="OpenLogs_Click" />
-                                        <Button Content="检查队列" Click="CheckQueue_Click" />
-                                        <Button Content="复制安装命令" Click="CopyInstall_Click" Margin="0" />
+                                <Border Grid.Row="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,12">
+                                    <StackPanel>
+                                        <TextBlock Text="已结账账单" Style="{StaticResource CardTitle}" />
+                                        <TextBlock Text="按结账时间倒序" Style="{StaticResource SubtleText}" Margin="0,2,0,0" />
                                     </StackPanel>
-                                    <TextBlock x:Name="QueueStatusText" Text="队列状态：未检查" Margin="0,10,0,0" Foreground="{StaticResource WarningBrush}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource CardBorder}">
-                                <StackPanel>
-                                    <TextBlock Text="转发" Style="{StaticResource SectionTitle}" />
-                                    <CheckBox x:Name="AutoForwardCheck" Content="捕获并计价后自动转发到路由目标" Checked="AutoForward_Changed" Unchecked="AutoForward_Changed" />
-                                    <TextBlock Text="关闭后只捕获/计价/路由，不自动发送；后续可在列表中人工处理。" Style="{StaticResource MutedText}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource CardBorder}">
-                                <StackPanel>
-                                    <TextBlock Text="启动" Style="{StaticResource SectionTitle}" />
-                                    <CheckBox x:Name="AutostartCheck" Content="开机自动启动 PrintPal（当前用户）" Checked="Autostart_Changed" Unchecked="Autostart_Changed" />
-                                    <TextBlock Text="会写入 HKCU\Software\Microsoft\Windows\CurrentVersion\Run。" Style="{StaticResource MutedText}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource CardBorder}">
-                                <StackPanel>
-                                    <TextBlock Text="关于" Style="{StaticResource SectionTitle}" />
-                                    <TextBlock x:Name="VersionText" Text="PrintPal" />
-                                    <TextBlock Text="本机 IPP 虚拟打印机 + PDF 页数解析 + SQLite 台账 + IPP/Raw 转发。" Style="{StaticResource MutedText}" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-            </TabControl>
+                                </Border>
 
-            <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="18,8">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="StatusBarText" Grid.Column="0" Text="就绪" Foreground="{StaticResource MutedBrush}" />
-                    <TextBlock Grid.Column="1" Text="PrintPal" Foreground="{StaticResource MutedBrush}" />
+                                <Border Grid.Row="1" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="14,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" MinWidth="120" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ComboBox x:Name="HistoryRangeCombo"
+                                                  Grid.Column="0"
+                                                  Width="116"
+                                                  Height="32"
+                                                  SelectedIndex="0"
+                                                  SelectionChanged="HistoryFilter_Changed">
+                                            <ComboBoxItem Content="全部时间" />
+                                            <ComboBoxItem Content="今天" />
+                                            <ComboBoxItem Content="近 7 天" />
+                                            <ComboBoxItem Content="近 30 天" />
+                                        </ComboBox>
+
+                                        <Grid Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <TextBox x:Name="HistorySearchBox"
+                                                     Height="32"
+                                                     Padding="33,0,10,0"
+                                                     TextChanged="HistorySearch_TextChanged"
+                                                     ToolTip="搜索账单名或备注" />
+                                            <TextBlock Text="&#xE721;"
+                                                       Style="{StaticResource IconGlyph}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SoftMutedBrush}"
+                                                       HorizontalAlignment="Left"
+                                                       Margin="11,0,0,0"
+                                                       IsHitTestVisible="False" />
+                                            <TextBlock Text="搜索账单名或备注"
+                                                       Margin="33,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SoftMutedBrush}"
+                                                       IsHitTestVisible="False">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Text, ElementName=HistorySearchBox}" Value="">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <TextBlock x:Name="HistoryCountText"
+                                                       Text="共 0 条"
+                                                       Style="{StaticResource MutedText}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,6,0" />
+                                            <Button Style="{StaticResource IconButton}"
+                                                    Content="&#xE72C;"
+                                                    ToolTip="刷新"
+                                                    Click="HistoryRefresh_Click" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Grid.Row="2">
+                                    <DataGrid x:Name="HistoryGrid"
+                                              SelectionChanged="HistoryGrid_SelectionChanged"
+                                              PreviewMouseLeftButtonDown="HistoryGrid_PreviewMouseLeftButtonDown"
+                                              HorizontalScrollBarVisibility="Auto">
+                                        <DataGrid.Columns>
+                                            <DataGridTemplateColumn Header="结账时间" Width="100" MinWidth="70">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding ClosedDateText}" FontSize="12" Foreground="{StaticResource InkSecondaryBrush}" />
+                                                            <TextBlock Text="{Binding ClosedTimeText}" FontSize="10.5" Foreground="{StaticResource SoftMutedBrush}" Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                            <DataGridTemplateColumn Header="账单" Width="*" MinWidth="120" CellTemplate="{StaticResource HistoryBillCell}" />
+                                            <DataGridTextColumn Header="单数" Binding="{Binding JobCount}" Width="52" MinWidth="42">
+                                                <DataGridTextColumn.ElementStyle>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}" />
+                                                </DataGridTextColumn.ElementStyle>
+                                            </DataGridTextColumn>
+                                            <DataGridTemplateColumn Header="金额" Width="82" MinWidth="57" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
+                                                <DataGridTemplateColumn.CellTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
+                                                    </DataTemplate>
+                                                </DataGridTemplateColumn.CellTemplate>
+                                            </DataGridTemplateColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <Border Background="White" IsHitTestVisible="False" Margin="0,41,0,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasItems, ElementName=HistoryGrid}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320">
+                                            <TextBlock Text="没有符合条件的账单"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource InkSecondaryBrush}"
+                                                       HorizontalAlignment="Center" />
+                                            <TextBlock Text="结账后的账单会归档到这里；可以调整时间范围或清空搜索。"
+                                                       Margin="0,6,0,0"
+                                                       Style="{StaticResource MutedText}"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="HistoryDetailsCard"
+                                Grid.Column="2"
+                                Style="{StaticResource CardBorder}"
+                                Padding="0"
+                                Visibility="Collapsed"
+                                SizeChanged="ClipCardCorners">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,8,10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="账单明细" Style="{StaticResource CardTitle}" />
+                                            <TextBlock x:Name="HistorySummaryText"
+                                                       Text="选择左侧账单查看其中的打印记录"
+                                                       Style="{StaticResource SubtleText}"
+                                                       Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Style="{StaticResource IconButton}"
+                                                Width="30"
+                                                Height="30"
+                                                Content="&#xE8BB;"
+                                                ToolTip="关闭账单明细"
+                                                Click="CloseHistoryDetails_Click" />
+                                    </Grid>
+                                </Border>
+
+                                <DataGrid x:Name="HistoryJobsGrid" Grid.Row="1" Margin="0" HorizontalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="时间" Binding="{Binding TimeShortText}" Width="104" MinWidth="73" />
+                                        <DataGridTemplateColumn Header="文档" Width="*" MinWidth="140" CellTemplate="{StaticResource JobDocumentCell}" />
+                                        <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="44" MinWidth="36" />
+                                        <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="44" MinWidth="36" />
+                                        <DataGridTemplateColumn Header="金额" Width="66" MinWidth="46" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ================= printers -->
+                    <Grid x:Name="PrintersPage" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="18,12" Margin="0,0,0,14">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="打印机" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Text="维护 IPP / Raw 9100 目标打印机" Style="{StaticResource SubtleText}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Content="+ 新增打印机" Style="{StaticResource PrimaryButton}" Click="AddPrinter_Click" />
+                                    <Button Content="编辑" Click="EditPrinter_Click" />
+                                    <Button Content="测试连接" Click="TestPrinter_Click" />
+                                    <Button Content="设为默认" Click="SetDefault_Click" />
+                                    <Button Content="删除" Style="{StaticResource DangerButton}" Margin="0" Click="DeletePrinter_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="0,4,0,12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <DataGrid x:Name="PrintersGrid" Grid.Row="0" HorizontalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="名称" Width="*" MinWidth="170" CellTemplate="{StaticResource PrinterNameCell}" />
+                                        <DataGridTextColumn Header="地址" Binding="{Binding Address}" Width="230" MinWidth="161">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                    <Setter Property="ToolTip" Value="{Binding Address}" />
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="格式 / 纸张" Binding="{Binding CapabilitiesText}" Width="220" MinWidth="154">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                    <Setter Property="ToolTip" Value="{Binding CapabilitiesText}" />
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTemplateColumn Header="最近测试" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
+                                        <DataGridTextColumn Header="启用" Binding="{Binding EnabledText}" Width="64" MinWidth="45" />
+                                        <DataGridTextColumn Header="默认" Binding="{Binding DefaultText}" Width="64" MinWidth="45" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock Grid.Row="1"
+                                           Text="测试连接会读取 IPP 打印机能力（文档格式 / 纸张 / 颜色 / 双面）。删除只移除 PrintPal 中的配置，不影响 Windows 队列。"
+                                           Style="{StaticResource FooterHint}"
+                                           Margin="18,8,18,2" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ================= routing -->
+                    <Grid x:Name="RoutingPage" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="18,12" Margin="0,0,0,14">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="路由规则" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Text="优先级越小越先匹配，第一条命中的规则生效" Style="{StaticResource SubtleText}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Content="+ 新增规则" Style="{StaticResource PrimaryButton}" Click="AddRouting_Click" />
+                                    <Button Content="编辑" Click="EditRouting_Click" />
+                                    <Button Content="删除" Style="{StaticResource DangerButton}" Margin="0" Click="DeleteRouting_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="0,4,0,12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <DataGrid x:Name="RoutingGrid" Grid.Row="0" HorizontalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="优先级" Binding="{Binding PriorityText}" Width="70" MinWidth="49" />
+                                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="180" MinWidth="126" />
+                                        <DataGridTextColumn Header="匹配条件" Binding="{Binding ConditionsText}" Width="*" MinWidth="260">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                    <Setter Property="ToolTip" Value="{Binding ConditionsText}" />
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="目标打印机" Binding="{Binding TargetText}" Width="170" MinWidth="119" />
+                                        <DataGridTextColumn Header="启用" Binding="{Binding EnabledText}" Width="70" MinWidth="49" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock Grid.Row="1"
+                                           Text="条件按 AND 组合，同类多值按 OR；空条件表示任意。无匹配时使用默认打印机，仍无目标则标记为“未路由”。"
+                                           Style="{StaticResource FooterHint}"
+                                           Margin="18,8,18,2" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ================= prices -->
+                    <Grid x:Name="PricesPage" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="18,12" Margin="0,0,0,14">
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="价格表" Style="{StaticResource CardTitle}" />
+                                    <TextBlock Text="按张计价，单位：元。双面奇数页的最后一张按单面价计算。"
+                                               Style="{StaticResource SubtleText}"
+                                               Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Content="保存价格" Style="{StaticResource PrimaryButton}" Margin="0" Click="SavePrices_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="0,4,0,12">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <DataGrid x:Name="PricesGrid" Grid.Row="0"
+                                          HorizontalScrollBarVisibility="Auto"
+                                          IsReadOnly="False"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          AutoGenerateColumns="False"
+                                          BeginningEdit="PricesGrid_BeginningEdit"
+                                          PreviewKeyDown="PricesGrid_PreviewKeyDown">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="纸张" Binding="{Binding PaperDisplay}" Width="*" MinWidth="120" IsReadOnly="True" />
+                                        <DataGridTextColumn Header="颜色" Binding="{Binding ColorDisplay}" Width="*" MinWidth="100" IsReadOnly="True" />
+                                        <DataGridTextColumn Header="单面价 / 张" Binding="{Binding SimplexYuan, StringFormat=0.00}" Width="*" MinWidth="120" />
+                                        <DataGridTextColumn Header="双面价 / 张" Binding="{Binding DuplexYuan, StringFormat=0.00}" Width="*" MinWidth="120" />
+                                        <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}" Width="110" MinWidth="77" />
+                                        <DataGridTextColumn Header="优先级" Binding="{Binding PriorityText}" Width="110" MinWidth="77" IsReadOnly="True" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <TextBlock Grid.Row="1"
+                                           Text="双击金额单元格即可编辑；修改后点击“保存价格”。金额按分存储、界面按元显示，未启用的规则不参与计价。"
+                                           Style="{StaticResource FooterHint}"
+                                           Margin="18,8,18,2" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ================= settings -->
+                    <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Grid Margin="0,0,4,4" MaxWidth="1120" HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+                                    <StackPanel>
+                                        <TextBlock Text="打印服务" Style="{StaticResource SectionTitle}" />
+                                        <TextBlock Text="本机 IPP 地址" Style="{StaticResource LabelText}" />
+                                        <Border Style="{StaticResource InsetCard}" Margin="0,0,0,10">
+                                            <TextBlock x:Name="IppUriText" Text="—" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" />
+                                        </Border>
+                                        <TextBlock Text="数据目录" Style="{StaticResource LabelText}" />
+                                        <Border Style="{StaticResource InsetCard}" Margin="0,0,0,14">
+                                            <TextBlock x:Name="DataDirText" Text="—" FontFamily="Consolas" FontSize="11.5" TextWrapping="Wrap" />
+                                        </Border>
+                                        <WrapPanel>
+                                            <Button Content="打开数据目录" Click="OpenData_Click" Margin="0,0,8,8" />
+                                            <Button Content="打开日志" Click="OpenLogs_Click" Margin="0,0,8,8" />
+                                            <Button Content="检查队列" Click="CheckQueue_Click" Margin="0,0,8,8" />
+                                            <Button Content="复制安装命令" Click="CopyInstall_Click" Margin="0,0,0,8" />
+                                        </WrapPanel>
+                                        <Border Style="{StaticResource InsetCard}" Margin="0,6,0,0">
+                                            <TextBlock x:Name="QueueStatusText" Text="队列状态：未检查" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" FontSize="12" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="转发" Style="{StaticResource SectionTitle}" />
+                                        <CheckBox x:Name="AutoForwardCheck"
+                                                  Content="捕获并计价后自动转发到路由目标"
+                                                  Checked="AutoForward_Changed"
+                                                  Unchecked="AutoForward_Changed" />
+                                        <TextBlock Text="关闭后只捕获、计价和路由，不自动发送；之后可在打印记录中人工处理。"
+                                                   Style="{StaticResource MutedText}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+                                    <StackPanel>
+                                        <TextBlock Text="启动" Style="{StaticResource SectionTitle}" />
+                                        <CheckBox x:Name="AutostartCheck"
+                                                  Content="开机自动启动 PrintPal（当前用户）"
+                                                  Checked="Autostart_Changed"
+                                                  Unchecked="Autostart_Changed" />
+                                        <TextBlock Text="写入 HKCU\Software\Microsoft\Windows\CurrentVersion\Run，以 --background 启动并驻留托盘。"
+                                                   Style="{StaticResource MutedText}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardBorder}">
+                                    <StackPanel>
+                                        <TextBlock Text="关于" Style="{StaticResource SectionTitle}" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="44" Height="44" Background="{StaticResource AccentSoftBrush}" CornerRadius="12" Padding="5">
+                                                <Image Source="pack://application:,,,/Assets/PrintPal.png" Stretch="Uniform" />
+                                            </Border>
+                                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock x:Name="VersionText" Text="PrintPal" FontSize="14" FontWeight="SemiBold" />
+                                                <TextBlock Text="本机虚拟打印 · 自动计价 · 台账归档"
+                                                           Style="{StaticResource SubtleText}"
+                                                           Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <TextBlock Text="捕获 Windows IPP 打印任务，解析 PDF 页数，按纸张 / 颜色 / 单双面计价，并可转发到 IPP 或 Raw 9100 网络打印机。"
+                                                   Style="{StaticResource MutedText}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,14,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- status bar -->
+                <Border Grid.Row="3" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="26,0">
+                    <Grid>
+                        <TextBlock x:Name="StatusBarText"
+                                   Text="就绪"
+                                   Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="StatusVersionText"
+                                   Text="PrintPal"
+                                   Style="{StaticResource SubtleText}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
                 </Grid>
             </Border>
         </Grid>
 
         <!-- ======================================================== SIMPLE -->
-        <Grid x:Name="SimpleLayout" Visibility="Collapsed">
+        <Grid x:Name="SimpleLayout" Visibility="Collapsed" Background="{StaticResource PageBackgroundBrush}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="58" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="#0F172A" Padding="16,10">
-                <Grid>
+            <Border Grid.Row="0" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid Margin="18,0,16,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="PrintPal" Foreground="White" FontSize="19" FontWeight="Bold" VerticalAlignment="Center" />
-                    <ListBox x:Name="SimpleTagTabs" Grid.Column="1" Height="34" Margin="16,0,8,0"
-                             Background="Transparent" BorderThickness="0"
-                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                             ItemContainerStyle="{StaticResource TagTabItemStyle}"
-                             DisplayMemberPath="Name"
-                             SelectionChanged="TagTabs_SelectionChanged"
-                             MouseDoubleClick="TagTabs_MouseDoubleClick">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                    </ListBox>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                        <Button Content="+ 新标签" Style="{StaticResource PrimaryButton}" Click="AddTag_Click" />
-                        <Button Content="结账" Style="{StaticResource PrimaryButton}" Click="Checkout_Click" />
-                        <ComboBox x:Name="SimpleModeCombo" Width="82" Margin="6,0" SelectionChanged="ModeCombo_SelectionChanged">
-                            <ComboBoxItem Content="完整" />
-                            <ComboBoxItem Content="简洁" />
-                            <ComboBoxItem Content="极简" />
-                        </ComboBox>
-                        <Button x:Name="SimplePinButton" Content="置顶：关" Click="TopmostToggle_Click" />
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Width="30" Height="30" Background="{StaticResource AccentSoftBrush}" CornerRadius="8" Padding="3">
+                            <Image Source="pack://application:,,,/Assets/PrintPal.png" Stretch="Uniform" />
+                        </Border>
+                        <TextBlock Text="PrintPal" FontSize="15" FontWeight="Bold" Foreground="{StaticResource InkBrush}" VerticalAlignment="Center" Margin="9,0,12,0" />
+                    </StackPanel>
+
+                    <Grid Grid.Column="1" Margin="4,0,12,0" VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="SimpleParkedCaptionText"
+                                   Grid.Column="0"
+                                   Text="暂无挂起账单"
+                                   Style="{StaticResource MutedText}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ScrollViewer Grid.Column="1"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalAlignment="Center">
+                            <ItemsControl x:Name="SimpleParkedBills"
+                                          ItemTemplate="{StaticResource ParkedBillChipTemplate}"
+                                          ItemsPanel="{StaticResource HorizontalChipPanel}" />
+                        </ScrollViewer>
+                    </Grid>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="{StaticResource CardBrush}"
+                                BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="2"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="SimpleModeFullButton"
+                                        Style="{StaticResource SmallModeSwitchButton}"
+                                        Content="&#xE90C;"
+                                        Tag="Full"
+                                        Click="FullMode_Click"
+                                        ToolTip="完整模式"
+                                        AutomationProperties.Name="完整模式" />
+                                <Button x:Name="SimpleModeSimpleButton"
+                                        Style="{StaticResource SmallModeSwitchButton}"
+                                        Content="&#xEA37;"
+                                        Tag="Simple"
+                                        Click="SimpleMode_Click"
+                                        ToolTip="简洁模式"
+                                        AutomationProperties.Name="简洁模式" />
+                                <Button x:Name="SimpleModeMinimalButton"
+                                        Style="{StaticResource SmallModeSwitchButton}"
+                                        Content="&#xE73F;"
+                                        Tag="Minimal"
+                                        Click="MinimalMode_Click"
+                                        ToolTip="极简模式"
+                                        AutomationProperties.Name="极简模式" />
+                            </StackPanel>
+                        </Border>
+                        <Button x:Name="SimplePinButton"
+                                Style="{StaticResource HeaderActionButton}"
+                                Width="34"
+                                Height="34"
+                                Padding="0"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="13"
+                                Content="&#xE718;"
+                                ToolTip="置顶"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="TopmostToggle_Click" />
+                        <Button Style="{StaticResource WindowControlButton}"
+                                Content="&#xE921;"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="MinimizeWindow_Click"
+                                ToolTip="最小化到托盘" />
+                        <Button x:Name="SimpleMaximizeButton"
+                                Style="{StaticResource WindowControlButton}"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="MaximizeWindow_Click"
+                                ToolTip="最大化">
+                            <TextBlock x:Name="SimpleMaximizeGlyph" Text="&#xE922;" Style="{StaticResource IconGlyph}" FontSize="10" />
+                        </Button>
+                        <Button Style="{StaticResource WindowCloseButton}"
+                                Content="&#xE8BB;"
+                                FontFamily="Segoe MDL2 Assets"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Click="CloseToTray_Click"
+                                ToolTip="隐藏到托盘" />
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,10">
+            <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="16,14,16,0" Padding="20,14">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock x:Name="SimpleCurrentTagText" Text="当前标签：标签1" FontSize="15" FontWeight="SemiBold" />
-                        <TextBlock x:Name="SimpleCountText" Text="本次 0 单" Style="{StaticResource MutedText}" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="SimpleCurrentTagText"
+                                   Text="当前账单：客户1"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource InkBrush}"
+                                   Cursor="Hand"
+                                   ToolTip="双击改名"
+                                   MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
                     </StackPanel>
-                    <TextBlock x:Name="SimpleAmountText" Grid.Column="1" Text="¥0.00" FontSize="26" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="SimpleAmountText"
+                                   Text="¥0.00"
+                                   FontSize="30"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,16,0" />
+                        <Button x:Name="SimpleParkButton"
+                                Content="挂起"
+                                Height="42"
+                                Width="88"
+                                Margin="0,0,8,0"
+                                ToolTip="把当前账单挂起，并给下一位客户开一张新账单"
+                                Click="ParkBill_Click" />
+                        <Button x:Name="SimpleCheckoutButton"
+                                Content="结账" Style="{StaticResource PrimaryButton}" Height="42" Width="96" Margin="0" Click="Checkout_Click" />
+                    </StackPanel>
                 </Grid>
             </Border>
 
-            <DataGrid x:Name="SimpleJobsGrid" Grid.Row="2" Margin="12" IsReadOnly="True">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="135" />
-                    <DataGridTextColumn Header="文档" Binding="{Binding DocumentName}" Width="*" MinWidth="200" />
-                    <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="60" />
-                    <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="60" />
-                    <DataGridTextColumn Header="金额" Binding="{Binding AmountText}" Width="100" />
-                    <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="100" />
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <Border Grid.Row="3" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,8">
+            <Border Grid.Row="2" Style="{StaticResource CardBorder}" Margin="16,14,16,12" Padding="0" SizeChanged="ClipCardCorners">
                 <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="SimpleStatusText" Grid.Column="0" Text="就绪" Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+                    <DataGrid x:Name="SimpleJobsGrid" Margin="0" HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCell}" />
+                            <DataGridTextColumn Header="规格" Binding="{Binding SpecText}" Width="158" MinWidth="111" />
+                            <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44" />
+                            <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="56" MinWidth="44" />
+                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="55" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Background="White" IsHitTestVisible="False" Margin="0,41,0,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasItems, ElementName=SimpleJobsGrid}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="等待打印任务"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource InkSecondaryBrush}"
+                                       HorizontalAlignment="Center" />
+                            <TextBlock Text="打印后会自动出现在当前账单下"
+                                       Style="{StaticResource MutedText}"
+                                       Margin="0,6,0,0"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
+
         </Grid>
 
         <!-- ======================================================== MINIMAL -->
-        <Border x:Name="MinimalLayout" Visibility="Collapsed" Background="#0F172A" CornerRadius="10" Padding="12" Margin="0">
+        <Border x:Name="MinimalLayout"
+                Visibility="Collapsed"
+                Background="#0B1322"
+                CornerRadius="14"
+                ClipToBounds="True">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+                <Border Height="3" VerticalAlignment="Top" Background="#3B82F6" CornerRadius="14,14,0,0" />
+                <Grid Margin="16,14,14,12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="MinimalHeader_MouseLeftButtonDown">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="PrintPal" Foreground="White" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <ComboBox x:Name="MinimalModeCombo" Width="72" Height="24" SelectedIndex="2" SelectionChanged="ModeCombo_SelectionChanged">
-                            <ComboBoxItem Content="完整" />
-                            <ComboBoxItem Content="简洁" />
-                            <ComboBoxItem Content="极简" />
-                        </ComboBox>
-                        <Button x:Name="MinimalPinButton" Content="置顶：开" Click="TopmostToggle_Click" Height="24" Padding="6,0" />
-                        <Button Content="✕" Click="CloseToTray_Click" Height="24" Padding="6,0" ToolTip="隐藏到托盘" />
-                    </StackPanel>
+                    <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="MinimalHeader_MouseLeftButtonDown">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="7" Height="7" Fill="#22C55E" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock x:Name="MinimalBillNameText"
+                                       Text="客户1"
+                                       Foreground="White"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       MaxWidth="118"
+                                       TextTrimming="CharacterEllipsis"
+                                       Cursor="Hand"
+                                       ToolTip="双击改名"
+                                       MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Border Background="#1E293B"
+                                BorderBrush="#334155"
+                                BorderThickness="1"
+                                CornerRadius="7"
+                                Padding="2"
+                                VerticalAlignment="Center"
+                                WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="MinimalModeFullButton"
+                                        Style="{StaticResource DarkModeSwitchButton}"
+                                        Content="&#xE90C;"
+                                        Tag="Full"
+                                        Click="FullMode_Click"
+                                        ToolTip="完整模式"
+                                        AutomationProperties.Name="完整模式" />
+                                <Button x:Name="MinimalModeSimpleButton"
+                                        Style="{StaticResource DarkModeSwitchButton}"
+                                        Content="&#xEA37;"
+                                        Tag="Simple"
+                                        Click="SimpleMode_Click"
+                                        ToolTip="简洁模式"
+                                        AutomationProperties.Name="简洁模式" />
+                                <Button x:Name="MinimalModeMinimalButton"
+                                        Style="{StaticResource DarkModeSwitchButton}"
+                                        Content="&#xE73F;"
+                                        Tag="Minimal"
+                                        Click="MinimalMode_Click"
+                                        ToolTip="极简模式"
+                                        AutomationProperties.Name="极简模式" />
+                            </StackPanel>
+                        </Border>
+                            <Button x:Name="MinimalPinButton"
+                                    Style="{StaticResource DarkGhostButton}"
+                                    Width="26"
+                                    Height="24"
+                                    Padding="0"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="11"
+                                    Content="&#xE718;"
+                                    ToolTip="置顶"
+                                    WindowChrome.IsHitTestVisibleInChrome="True"
+                                    Click="TopmostToggle_Click" />
+                            <Button Style="{StaticResource MinimalIconButton}"
+                                    Width="24" Height="24"
+                                    Content="&#xE8BB;"
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="9"
+                                    Margin="4,0,0,0"
+                                    WindowChrome.IsHitTestVisibleInChrome="True"
+                                    Click="CloseToTray_Click"
+                                    ToolTip="隐藏到托盘" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="MinimalParkedPanel" Grid.Row="1" Margin="0,8,0,0" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MinimalParkedCaptionText"
+                                   Grid.Column="0"
+                                   Text="挂起 0"
+                                   Foreground="#94A3B8"
+                                   FontSize="11"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,6,0" />
+                        <ScrollViewer Grid.Column="1"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      VerticalAlignment="Center">
+                            <ItemsControl x:Name="MinimalParkedBills"
+                                          ItemTemplate="{StaticResource SmallParkedBillChipTemplate}"
+                                          ItemsPanel="{StaticResource HorizontalChipPanel}" />
+                        </ScrollViewer>
+                    </Grid>
+
+                    <TextBlock x:Name="MinimalAmountText"
+                               Grid.Row="2"
+                               Text="¥0.00"
+                               Foreground="White"
+                               FontSize="34"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Margin="0,6,0,0" />
+
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="MinimalParkButton"
+                                Grid.Column="0"
+                                Content="挂起"
+                                Height="34"
+                                Margin="0"
+                                ToolTip="把当前账单挂起，并给下一位客户开一张新账单"
+                                Click="ParkBill_Click" />
+                        <Button x:Name="MinimalCheckoutButton"
+                                Grid.Column="2"
+                                Content="结账"
+                                Style="{StaticResource PrimaryButton}"
+                                Height="34"
+                                Margin="0"
+                                Click="Checkout_Click" />
+                    </Grid>
                 </Grid>
-
-                <TextBlock x:Name="MinimalTagNameText" Grid.Row="1" Text="标签1" Foreground="#BFDBFE" FontSize="16" FontWeight="SemiBold"
-                           Margin="0,8,0,0" Cursor="Hand" ToolTip="双击重命名"
-                           MouseLeftButtonDown="MinimalTagName_MouseLeftButtonDown" />
-
-                <StackPanel Grid.Row="2" VerticalAlignment="Center">
-                    <TextBlock Text="本次金额" Foreground="#94A3B8" FontSize="11" />
-                    <TextBlock x:Name="MinimalAmountText" Text="¥0.00" Foreground="White" FontSize="32" FontWeight="Bold" Margin="0,0,0,0" />
-                    <TextBlock x:Name="MinimalCountText" Text="0 单" Foreground="#CBD5E1" FontSize="12" />
-                </StackPanel>
-
-                <Button Grid.Row="3" Content="结账" Style="{StaticResource PrimaryButton}" Click="Checkout_Click" Height="30" HorizontalAlignment="Stretch" />
             </Grid>
         </Border>
     </Grid>
 </Window>
-
-
 
 

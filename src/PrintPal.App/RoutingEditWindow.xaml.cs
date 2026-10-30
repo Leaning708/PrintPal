@@ -11,6 +11,8 @@ public partial class RoutingEditWindow : Window
     {
         InitializeComponent();
 
+        MaxHeight = Math.Max(560, SystemParameters.WorkArea.Height - 32);
+
         _rule = rule ?? new RoutingRule();
 
         TargetCombo.ItemsSource = printers;

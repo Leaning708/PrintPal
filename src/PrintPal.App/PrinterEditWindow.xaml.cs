@@ -15,6 +15,8 @@ public partial class PrinterEditWindow : Window
     {
         InitializeComponent();
 
+        MaxHeight = Math.Max(560, SystemParameters.WorkArea.Height - 32);
+
         _existing = printer;
         _printer = printer ?? new Printer();
 
