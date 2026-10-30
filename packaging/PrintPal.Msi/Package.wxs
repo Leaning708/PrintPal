@@ -1,0 +1,150 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="PrintPal"
+           Manufacturer="PrintPal"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="6C2E3B8A-8F5D-4C1E-9A7B-2D3E4F5A6B7C"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of PrintPal is already installed." Schedule="afterInstallValidate" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="PrintPalIcon" SourceFile="$(var.AppSource)\PrintPal.App.exe" />
+    <Property Id="ARPPRODUCTICON" Value="PrintPalIcon" />
+
+    <ui:WixUI Id="WixUI_InstallDir" />
+
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <Property Id="PRINTPAL_QUEUE_URL" Value="http://127.0.0.1:8630/ipp/print" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="PrintPal">
+        <Directory Id="InstallerFolder" Name="installer" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="PrintPalDataFolder" Name="PrintPal">
+        <Component Id="DataFolderComponent" Guid="D4C5B6A7-8E9F-4A1B-9C2D-3E4F5A6B7C8D" Permanent="yes">
+          <CreateFolder />
+          <RegistryValue Root="HKLM" Key="Software\PrintPal" Name="DataFolder" Type="integer" Value="1" KeyPath="yes" />
+          <RegistryValue Root="HKLM" Key="Software\PrintPal" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+
+    <Feature Id="ProductFeature" Title="PrintPal" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentGroupRef Id="InstallerFiles" />
+      <ComponentRef Id="ServiceExe" />
+      <ComponentRef Id="DataFolderComponent" />
+      <ComponentRef Id="ArpIconComponent" />
+    </Feature>
+
+    <CustomAction Id="SetInstallQueue"
+                  Property="InstallQueue"
+                  Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]installer\PrintPal.MsiQueue.ps1&quot; -Url &quot;[PRINTPAL_QUEUE_URL]&quot;" />
+
+    <CustomAction Id="InstallQueue"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="yes"
+                  Return="check" />
+
+    <CustomAction Id="SetRollbackQueue"
+                  Property="RollbackQueue"
+                  Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]installer\PrintPal.MsiQueueRemove.ps1&quot;" />
+
+    <CustomAction Id="RollbackQueue"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec"
+                  Execute="rollback"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="SetRemoveQueue"
+                  Property="RemoveQueue"
+                  Value="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]installer\PrintPal.MsiQueueRemove.ps1&quot;" />
+
+    <CustomAction Id="RemoveQueue"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SetRollbackQueue" Before="InstallQueue" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="RollbackQueue" Before="InstallQueue" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="SetInstallQueue" After="InstallFiles" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="InstallQueue" After="StartServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="SetRemoveQueue" Before="StopServices" Condition="REMOVE~=&quot;ALL&quot;" />
+      <Custom Action="RemoveQueue" Before="StopServices" Condition="REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER" Source="$(var.AppSource)">
+      <Files Include="**">
+        <Exclude Files="PrintPal.Service.exe" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+
+
+
+  <Fragment>
+    <ComponentGroup Id="InstallerFiles" Directory="InstallerFolder" Source="$(var.InstallerSource)">
+      <Files Include="**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="ArpIconComponent" Guid="*">
+        <RegistryValue Root="HKLM"
+                       Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\[ProductCode]"
+                       Name="DisplayIcon"
+                       Type="string"
+                       Value="[INSTALLFOLDER]PrintPal.App.exe,0"
+                       KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="ServiceExe" Guid="*">
+        <File Id="PrintPalServiceExe" Source="$(var.AppSource)\PrintPal.Service.exe" KeyPath="yes" />
+        <ServiceInstall Id="PrintPalServiceInstall"
+                        Name="PrintPal.Service"
+                        DisplayName="PrintPal Service"
+                        Description="PrintPal IPP capture and forwarding service"
+                        Start="auto"
+                        Type="ownProcess"
+                        ErrorControl="normal"
+                        Account="LocalSystem" />
+        <ServiceControl Id="PrintPalServiceControl"
+                        Name="PrintPal.Service"
+                        Start="install"
+                        Stop="both"
+                        Remove="uninstall"
+                        Wait="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+</Wix>
+
+
+
+
+
+

@@ -4,10 +4,14 @@ obj/
 dist/
 artifacts/
 TestResults/
-*.msi
 *.zip
 *.wixpdb
 *.wixobj
+
+# MSI output lands in dist/ (ignored above). Do NOT use a bare "*.msi" rule:
+# it also matches the packaging/PrintPal.Msi project directory and would hide
+# the WiX sources from git.
+/*.msi
 
 # IDE
 .vs/
