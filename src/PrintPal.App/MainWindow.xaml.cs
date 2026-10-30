@@ -421,7 +421,8 @@ public partial class MainWindow : Window
         MinimalAmountText.Text = amountText;
 
         FullParkedCaptionText.Text = parked == 0 ? "暂无挂起账单" : $"已挂起 {parked}";
-        SimpleParkedCaptionText.Text = parked == 0 ? "暂无挂起账单" : $"已挂起 {parked}";
+        SimpleParkedCaptionText.Text = $"已挂起 {parked}";
+        SimpleParkedPanel.Visibility = parked == 0 ? Visibility.Collapsed : Visibility.Visible;
         MinimalParkedPanel.Visibility = parked == 0 ? Visibility.Collapsed : Visibility.Visible;
         MinimalParkedCaptionText.Text = $"挂起 {parked}";
 

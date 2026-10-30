@@ -720,7 +720,6 @@
         <Setter Property="Foreground" Value="#475569" />
         <Setter Property="BorderBrush" Value="#E2E8F0" />
         <Setter Property="ToolTipService.ShowDuration" Value="10000" />
-        <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
     </Style>
 
     <Style x:Key="SmallParkedBillChipStyle" TargetType="Button" BasedOn="{StaticResource ParkedBillChipStyle}">
