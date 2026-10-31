@@ -497,7 +497,6 @@ public partial class MainWindow : Window
         var billListVisible = _openBillChips.Count > 0;
         FullParkedCaptionText.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
         FullParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
-        SimpleParkedCaptionText.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
         SimpleParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
         MinimalParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
 
@@ -1389,8 +1388,8 @@ public partial class MainWindow : Window
                 Background = mode == UiMode.Full
                     ? (System.Windows.Media.Brush)FindResource("SidebarBrush")
                     : (System.Windows.Media.Brush)FindResource("PageBackgroundBrush");
-                MinWidth = mode == UiMode.Full ? 1200 : 760;
-                MinHeight = mode == UiMode.Full ? 620 : 500;
+                MinWidth = mode == UiMode.Full ? 1200 : 700;
+                MinHeight = mode == UiMode.Full ? 620 : 420;
                 ConfigureWindowChrome(mode == UiMode.Full ? 78 : 58, 6);
 
                 if (mode == UiMode.Full)
@@ -1400,8 +1399,9 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    Width = await GetDoubleSettingAsync("simpleWidth", 940);
-                    Height = await GetDoubleSettingAsync("simpleHeight", 640);
+                    // 简洁模式默认尺寸与当前紧凑布局匹配（贴边账单条 + 紧凑列表）
+                    Width = await GetDoubleSettingAsync("simpleWidth", 776);
+                    Height = await GetDoubleSettingAsync("simpleHeight", 436);
                 }
             }
 

@@ -219,6 +219,17 @@
             </StackPanel>
         </DataTemplate>
 
+        <!-- 简洁模式文档列：只显示文档名，不显示主机名，行高更紧凑 -->
+        <DataTemplate x:Key="JobDocumentCellSimple">
+            <TextBlock Text="{Binding DocumentName}"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource InkBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding DocumentName}"
+                       VerticalAlignment="Center" />
+        </DataTemplate>
+
         <DataTemplate x:Key="PrinterNameCell">
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding Name}"
@@ -1472,9 +1483,9 @@
         </Grid>
 
         <!-- ======================================================== SIMPLE -->
-        <Grid x:Name="SimpleLayout" Visibility="Collapsed" Background="{StaticResource PageBackgroundBrush}">
+        <Grid x:Name="SimpleLayout" Visibility="Collapsed" Background="White">
             <Grid.RowDefinitions>
-                <RowDefinition Height="58" />
+                <RowDefinition Height="44" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
@@ -1560,41 +1571,31 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="16,14,16,0" Padding="20,12">
+            <!-- 账单条：平贴工具条（无卡片装饰），底部发丝线与任务表分隔 -->
+            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,8">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <!-- MinWidth 给当前账单列留出余量，账单改名时列宽不再频繁跳动 -->
-                        <ColumnDefinition Width="Auto" MinWidth="100" />
+                        <ColumnDefinition Width="Auto" MinWidth="80" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="当前账单" Style="{StaticResource SubtleText}" />
                     <TextBlock x:Name="SimpleCurrentTagText"
-                               Grid.Row="1" Grid.Column="0"
+                               Grid.Column="0"
                                Text="客户1"
                                FontSize="17"
                                FontWeight="Bold"
                                Foreground="{StaticResource InkBrush}"
-                               Margin="0,3,0,0"
+                               VerticalAlignment="Center"
                                Cursor="Hand"
                                ToolTip="双击改名"
                                MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
 
-                    <!-- 未结账单区：与当前账单平行展示（同完整模式），标题在上 + 序号 chip + 溢出折叠 +N -->
-                    <TextBlock x:Name="SimpleParkedCaptionText"
-                               Grid.Row="0" Grid.Column="1"
-                               Text="未结账单"
-                               Style="{StaticResource SubtleText}"
-                               Margin="32,0,0,4"
-                               Visibility="Collapsed" />
+                    <!-- 未结账单：与当前账单平行，溢出折叠 +N；左距 12 与名称左侧卡片内边距一致 -->
                     <Border x:Name="SimpleParkedPanel"
-                            Grid.Row="1" Grid.Column="1"
-                            Margin="22,0,18,0"
+                            Grid.Column="1"
+                            Margin="12,0,18,0"
                             BorderBrush="{StaticResource LineBrush}"
                             BorderThickness="1,0"
                             SnapsToDevicePixels="True"
@@ -1645,35 +1646,32 @@
                             </Grid>
                         </Border>
 
-                        <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                                <TextBlock Text="本单合计" Style="{StaticResource SubtleText}" HorizontalAlignment="Right" />
-                                <TextBlock x:Name="SimpleAmountText"
-                                           Text="¥0.00"
-                                           FontSize="30"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource AccentBrush}"
-                                           HorizontalAlignment="Right"
-                                           Margin="0,2,0,0" />
-                            </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="SimpleAmountText"
+                                       Text="¥0.00"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0" />
                             <Button x:Name="SimpleParkButton"
                                     Content="挂起"
-                                    Height="42"
-                                    Width="88"
-                                    Margin="0,0,8,0"
+                                    Height="34"
+                                    Width="76"
+                                    Margin="0,0,6,0"
                                     ToolTip="把当前账单挂起，并给下一位客户开一张新账单"
                                     Click="ParkBill_Click" />
                             <Button x:Name="SimpleCheckoutButton"
-                                    Content="结账" Style="{StaticResource PrimaryButton}" Height="42" Width="96" Margin="0" Click="Checkout_Click" />
+                                    Content="结账" Style="{StaticResource PrimaryButton}" Height="34" Width="84" Margin="0" Click="Checkout_Click" />
                         </StackPanel>
                 </Grid>
             </Border>
 
-            <Border Grid.Row="2" Style="{StaticResource CardBorder}" Margin="16,14,16,12" Padding="0" SizeChanged="ClipCardCorners">
+            <Border Grid.Row="2" Background="White">
                 <Grid>
-                    <DataGrid x:Name="SimpleJobsGrid" Margin="0" HorizontalScrollBarVisibility="Auto">
+                    <DataGrid x:Name="SimpleJobsGrid" Margin="0" RowHeight="30" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCell}" />
+                            <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCellSimple}" />
                             <DataGridTextColumn Header="规格" Binding="{Binding SpecText}" Width="158" MinWidth="111" />
                             <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                 <DataGridTextColumn.ElementStyle>
@@ -1700,7 +1698,7 @@
                         </DataGrid.Columns>
                     </DataGrid>
 
-                    <Border Background="White" IsHitTestVisible="False" Margin="0,41,0,0">
+                    <Border Background="White" IsHitTestVisible="False" Margin="0,35,0,0">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed" />
