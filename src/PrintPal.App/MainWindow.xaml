@@ -219,8 +219,8 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- 简洁模式文档列：只显示文档名，不显示主机名，行高更紧凑 -->
-        <DataTemplate x:Key="JobDocumentCellSimple">
+        <!-- 紧凑模式文档列：只显示文档名，不显示主机名，行高更紧凑 -->
+        <DataTemplate x:Key="JobDocumentCellCompact">
             <TextBlock Text="{Binding DocumentName}"
                        FontSize="12.5"
                        FontWeight="SemiBold"
@@ -581,13 +581,13 @@
                                         Click="FullMode_Click"
                                         ToolTip="完整模式"
                                         AutomationProperties.Name="完整模式" />
-                                <Button x:Name="FullModeSimpleButton"
+                                <Button x:Name="FullModeCompactButton"
                                         Style="{StaticResource ModeSwitchButton}"
                                         Content="&#xEA37;"
-                                        Tag="Simple"
-                                        Click="SimpleMode_Click"
-                                        ToolTip="简洁模式"
-                                        AutomationProperties.Name="简洁模式" />
+                                        Tag="Compact"
+                                        Click="CompactMode_Click"
+                                        ToolTip="紧凑模式"
+                                        AutomationProperties.Name="紧凑模式" />
                                 <Button x:Name="FullModeMinimalButton"
                                         Style="{StaticResource ModeSwitchButton}"
                                         Content="&#xE73F;"
@@ -1483,7 +1483,7 @@
         </Grid>
 
         <!-- ======================================================== SIMPLE -->
-        <Grid x:Name="SimpleLayout" Visibility="Collapsed" Background="White">
+        <Grid x:Name="CompactLayout" Visibility="Collapsed" Background="White">
             <Grid.RowDefinitions>
                 <RowDefinition Height="44" />
                 <RowDefinition Height="Auto" />
@@ -1491,7 +1491,8 @@
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
-                <Grid Margin="18,0,16,0">
+                <!-- 左距 10 与账单条内边距、表头文字内边距对齐；右距 10 与结账按钮右缘对齐 -->
+                <Grid Margin="10,0,10,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -1515,21 +1516,21 @@
                                 VerticalAlignment="Center"
                                 WindowChrome.IsHitTestVisibleInChrome="True">
                             <StackPanel Orientation="Horizontal">
-                                <Button x:Name="SimpleModeFullButton"
+                                <Button x:Name="CompactModeFullButton"
                                         Style="{StaticResource SmallModeSwitchButton}"
                                         Content="&#xE90C;"
                                         Tag="Full"
                                         Click="FullMode_Click"
                                         ToolTip="完整模式"
                                         AutomationProperties.Name="完整模式" />
-                                <Button x:Name="SimpleModeSimpleButton"
+                                <Button x:Name="CompactModeCompactButton"
                                         Style="{StaticResource SmallModeSwitchButton}"
                                         Content="&#xEA37;"
-                                        Tag="Simple"
-                                        Click="SimpleMode_Click"
-                                        ToolTip="简洁模式"
-                                        AutomationProperties.Name="简洁模式" />
-                                <Button x:Name="SimpleModeMinimalButton"
+                                        Tag="Compact"
+                                        Click="CompactMode_Click"
+                                        ToolTip="紧凑模式"
+                                        AutomationProperties.Name="紧凑模式" />
+                                <Button x:Name="CompactModeMinimalButton"
                                         Style="{StaticResource SmallModeSwitchButton}"
                                         Content="&#xE73F;"
                                         Tag="Minimal"
@@ -1538,7 +1539,7 @@
                                         AutomationProperties.Name="极简模式" />
                             </StackPanel>
                         </Border>
-                        <Button x:Name="SimplePinButton"
+                        <Button x:Name="CompactPinButton"
                                 Style="{StaticResource HeaderActionButton}"
                                 Width="34"
                                 Height="34"
@@ -1554,12 +1555,12 @@
                                 WindowChrome.IsHitTestVisibleInChrome="True"
                                 Click="MinimizeWindow_Click"
                                 ToolTip="最小化到托盘" />
-                        <Button x:Name="SimpleMaximizeButton"
+                        <Button x:Name="CompactMaximizeButton"
                                 Style="{StaticResource WindowControlButton}"
                                 WindowChrome.IsHitTestVisibleInChrome="True"
                                 Click="MaximizeWindow_Click"
                                 ToolTip="最大化">
-                            <TextBlock x:Name="SimpleMaximizeGlyph" Text="&#xE922;" Style="{StaticResource IconGlyph}" FontSize="10" />
+                            <TextBlock x:Name="CompactMaximizeGlyph" Text="&#xE922;" Style="{StaticResource IconGlyph}" FontSize="10" />
                         </Button>
                         <Button Style="{StaticResource WindowCloseButton}"
                                 Content="&#xE8BB;"
@@ -1572,7 +1573,7 @@
             </Border>
 
             <!-- 账单条：平贴工具条（无卡片装饰），底部发丝线与任务表分隔 -->
-            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="12,8">
+            <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="10,8">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <!-- MinWidth 给当前账单列留出余量，账单改名时列宽不再频繁跳动 -->
@@ -1581,7 +1582,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock x:Name="SimpleCurrentTagText"
+                    <TextBlock x:Name="CompactCurrentTagText"
                                Grid.Column="0"
                                Text="客户1"
                                FontSize="17"
@@ -1593,7 +1594,7 @@
                                MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
 
                     <!-- 未结账单：与当前账单平行，溢出折叠 +N；左距 12 与名称左侧卡片内边距一致 -->
-                    <Border x:Name="SimpleParkedPanel"
+                    <Border x:Name="CompactParkedPanel"
                             Grid.Column="1"
                             Margin="12,0,18,0"
                             BorderBrush="{StaticResource LineBrush}"
@@ -1601,13 +1602,13 @@
                             SnapsToDevicePixels="True"
                             Visibility="Collapsed">
                             <Grid>
-                                <Grid x:Name="SimpleParkedChipHost" ClipToBounds="True">
+                                <Grid x:Name="CompactParkedChipHost" ClipToBounds="True">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <ItemsControl Grid.Column="0"
-                                                  x:Name="SimpleParkedBills"
+                                                  x:Name="CompactParkedBills"
                                                   Margin="10,2,0,2"
                                                   HorizontalAlignment="Left"
                                                   VerticalAlignment="Center"
@@ -1620,7 +1621,7 @@
                                         </ItemsControl.ItemContainerStyle>
                                     </ItemsControl>
                                     <Button Grid.Column="1"
-                                            x:Name="SimpleParkedOverflowButton"
+                                            x:Name="CompactParkedOverflowButton"
                                             Content="+0"
                                             Style="{StaticResource ParkedOverflowChipStyle}"
                                             VerticalAlignment="Center"
@@ -1629,8 +1630,8 @@
                                             ToolTip="查看全部账单"
                                             Click="ParkedOverflow_Click" />
                                 </Grid>
-                                <Popup x:Name="SimpleParkedPopup"
-                                       PlacementTarget="{Binding ElementName=SimpleParkedOverflowButton}"
+                                <Popup x:Name="CompactParkedPopup"
+                                       PlacementTarget="{Binding ElementName=CompactParkedOverflowButton}"
                                        Placement="Bottom"
                                        VerticalOffset="4"
                                        StaysOpen="False"
@@ -1638,7 +1639,7 @@
                                        PopupAnimation="Fade">
                                     <Border Style="{StaticResource ParkedPopupCardStyle}">
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                            <ItemsControl x:Name="SimpleParkedPopupList"
+                                            <ItemsControl x:Name="CompactParkedPopupList"
                                                           ItemTemplate="{StaticResource ParkedPopupRowTemplate}" />
                                         </ScrollViewer>
                                     </Border>
@@ -1647,21 +1648,21 @@
                         </Border>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="SimpleAmountText"
+                            <TextBlock x:Name="CompactAmountText"
                                        Text="¥0.00"
                                        FontSize="22"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource AccentBrush}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0" />
-                            <Button x:Name="SimpleParkButton"
+                            <Button x:Name="CompactParkButton"
                                     Content="挂起"
                                     Height="34"
                                     Width="76"
                                     Margin="0,0,6,0"
                                     ToolTip="把当前账单挂起，并给下一位客户开一张新账单"
                                     Click="ParkBill_Click" />
-                            <Button x:Name="SimpleCheckoutButton"
+                            <Button x:Name="CompactCheckoutButton"
                                     Content="结账" Style="{StaticResource PrimaryButton}" Height="34" Width="84" Margin="0" Click="Checkout_Click" />
                         </StackPanel>
                 </Grid>
@@ -1669,9 +1670,9 @@
 
             <Border Grid.Row="2" Background="White">
                 <Grid>
-                    <DataGrid x:Name="SimpleJobsGrid" Margin="0" RowHeight="30" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto">
+                    <DataGrid x:Name="CompactJobsGrid" Margin="0" RowHeight="30" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCellSimple}" />
+                            <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCellCompact}" />
                             <DataGridTextColumn Header="规格" Binding="{Binding SpecText}" Width="158" MinWidth="111" />
                             <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                 <DataGridTextColumn.ElementStyle>
@@ -1703,7 +1704,7 @@
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasItems, ElementName=SimpleJobsGrid}" Value="False">
+                                    <DataTrigger Binding="{Binding HasItems, ElementName=CompactJobsGrid}" Value="False">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -1777,13 +1778,13 @@
                                         Click="FullMode_Click"
                                         ToolTip="完整模式"
                                         AutomationProperties.Name="完整模式" />
-                                <Button x:Name="MinimalModeSimpleButton"
+                                <Button x:Name="MinimalModeCompactButton"
                                         Style="{StaticResource DarkModeSwitchButton}"
                                         Content="&#xEA37;"
-                                        Tag="Simple"
-                                        Click="SimpleMode_Click"
-                                        ToolTip="简洁模式"
-                                        AutomationProperties.Name="简洁模式" />
+                                        Tag="Compact"
+                                        Click="CompactMode_Click"
+                                        ToolTip="紧凑模式"
+                                        AutomationProperties.Name="紧凑模式" />
                                 <Button x:Name="MinimalModeMinimalButton"
                                         Style="{StaticResource DarkModeSwitchButton}"
                                         Content="&#xE73F;"
@@ -1816,7 +1817,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- 未结账单区：小型 chip + 溢出折叠 +N（与完整/简洁模式同一方案，深色配色） -->
+                    <!-- 未结账单区：小型 chip + 溢出折叠 +N（与完整/紧凑模式同一方案，深色配色） -->
                     <Grid x:Name="MinimalParkedPanel" Grid.Row="1" Margin="0,8,0,0" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />

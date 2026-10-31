@@ -59,7 +59,7 @@ public partial class MainWindow : Window
     private enum UiMode
     {
         Full,
-        Simple,
+        Compact,
         Minimal,
     }
 
@@ -70,24 +70,24 @@ public partial class MainWindow : Window
         _agent = agent;
 
         JobsGrid.ItemsSource = _jobRows;
-        SimpleJobsGrid.ItemsSource = _jobRows;
+        CompactJobsGrid.ItemsSource = _jobRows;
         PrintersGrid.ItemsSource = _printerRows;
         RoutingGrid.ItemsSource = _routingRows;
         PricesGrid.ItemsSource = _priceRows;
         HistoryGrid.ItemsSource = _closedBillRows;
         HistoryJobsGrid.ItemsSource = _historyJobRows;
         FullParkedBills.ItemsSource = _openBillChips;
-        SimpleParkedBills.ItemsSource = _openBillChips;
+        CompactParkedBills.ItemsSource = _openBillChips;
         MinimalParkedBills.ItemsSource = _openBillChips;
         FullParkedPopupList.ItemsSource = _openBillChips;
-        SimpleParkedPopupList.ItemsSource = _openBillChips;
+        CompactParkedPopupList.ItemsSource = _openBillChips;
         MinimalParkedPopupList.ItemsSource = _openBillChips;
 
         _chipStrips.Add(new ChipOverflowStrip(
             FullParkedPanel, FullParkedChipHost, FullParkedBills, FullParkedOverflowButton, FullParkedPopup,
             (DataTemplate)FindResource("ParkedBillChipTemplate")));
         _chipStrips.Add(new ChipOverflowStrip(
-            SimpleParkedPanel, SimpleParkedChipHost, SimpleParkedBills, SimpleParkedOverflowButton, SimpleParkedPopup,
+            CompactParkedPanel, CompactParkedChipHost, CompactParkedBills, CompactParkedOverflowButton, CompactParkedPopup,
             (DataTemplate)FindResource("ParkedBillChipTemplate")));
         _chipStrips.Add(new ChipOverflowStrip(
             MinimalParkedPanel, MinimalParkedChipHost, MinimalParkedBills, MinimalParkedOverflowButton, MinimalParkedPopup,
@@ -147,6 +147,11 @@ public partial class MainWindow : Window
             UpdateQueueStatus();
 
             var savedMode = await _agent.Database.GetSettingAsync("uiMode");
+            // 兼容更名前的持久化值（Simple → Compact）
+            if (savedMode == "Simple")
+            {
+                savedMode = "Compact";
+            }
             if (Enum.TryParse<UiMode>(savedMode, out var mode))
             {
                 await SetModeAsync(mode, persist: false, force: true);
@@ -200,7 +205,7 @@ public partial class MainWindow : Window
         menu.Items.Add(CreateTrayItem("打开 PrintPal", () => ShowFromTray(), bold: true));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add(CreateTrayItem("完整模式", () => _ = SetModeAsync(UiMode.Full)));
-        menu.Items.Add(CreateTrayItem("简洁模式", () => _ = SetModeAsync(UiMode.Simple)));
+        menu.Items.Add(CreateTrayItem("紧凑模式", () => _ = SetModeAsync(UiMode.Compact)));
         menu.Items.Add(CreateTrayItem("极简模式", () => _ = SetModeAsync(UiMode.Minimal)));
         menu.Items.Add(new WinForms.ToolStripSeparator());
         menu.Items.Add(CreateTrayItem("打开数据目录", () => OpenFolder(_agent.Options.DataDirectory)));
@@ -342,9 +347,9 @@ public partial class MainWindow : Window
             FullMaximizeGlyph.Text = glyph;
         }
 
-        if (SimpleMaximizeGlyph is not null)
+        if (CompactMaximizeGlyph is not null)
         {
-            SimpleMaximizeGlyph.Text = glyph;
+            CompactMaximizeGlyph.Text = glyph;
         }
     }
 
@@ -370,15 +375,15 @@ public partial class MainWindow : Window
             var selectedPrinterId = (PrintersGrid.SelectedItem as PrinterRow)?.Printer.Id;
             var selectedRoutingId = (RoutingGrid.SelectedItem as RoutingRow)?.Rule.Id;
             var jobsScroll = GetScrollViewer(JobsGrid);
-            var simpleJobsScroll = GetScrollViewer(SimpleJobsGrid);
+            var compactJobsScroll = GetScrollViewer(CompactJobsGrid);
             var historyScroll = GetScrollViewer(HistoryGrid);
             var printersScroll = GetScrollViewer(PrintersGrid);
             var routingScroll = GetScrollViewer(RoutingGrid);
             var pricesScroll = GetScrollViewer(PricesGrid);
             var jobsOffset = jobsScroll?.VerticalOffset ?? 0;
             var jobsHOffset = jobsScroll?.HorizontalOffset ?? 0;
-            var simpleJobsOffset = simpleJobsScroll?.VerticalOffset ?? 0;
-            var simpleJobsHOffset = simpleJobsScroll?.HorizontalOffset ?? 0;
+            var compactJobsOffset = compactJobsScroll?.VerticalOffset ?? 0;
+            var compactJobsHOffset = compactJobsScroll?.HorizontalOffset ?? 0;
             var historyOffset = historyScroll?.VerticalOffset ?? 0;
             var historyHOffset = historyScroll?.HorizontalOffset ?? 0;
             var printersOffset = printersScroll?.VerticalOffset ?? 0;
@@ -457,7 +462,7 @@ public partial class MainWindow : Window
                 new Action(() =>
                 {
                     RestoreScrollOffset(JobsGrid, jobsOffset, jobsHOffset);
-                    RestoreScrollOffset(SimpleJobsGrid, simpleJobsOffset, simpleJobsHOffset);
+                    RestoreScrollOffset(CompactJobsGrid, compactJobsOffset, compactJobsHOffset);
                     RestoreScrollOffset(HistoryGrid, historyOffset, historyHOffset);
                     RestoreScrollOffset(PrintersGrid, printersOffset, printersHOffset);
                     RestoreScrollOffset(RoutingGrid, routingOffset, routingHOffset);
@@ -487,8 +492,8 @@ public partial class MainWindow : Window
         FullAmountText.Text = amountText;
         JobsNavCountText.Text = count.ToString();
 
-        SimpleCurrentTagText.Text = name;
-        SimpleAmountText.Text = amountText;
+        CompactCurrentTagText.Text = name;
+        CompactAmountText.Text = amountText;
 
         MinimalBillNameText.Text = name;
         MinimalAmountText.Text = amountText;
@@ -497,14 +502,14 @@ public partial class MainWindow : Window
         var billListVisible = _openBillChips.Count > 0;
         FullParkedCaptionText.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
         FullParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
-        SimpleParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
+        CompactParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
         MinimalParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
 
         var hasJobs = count > 0;
         FullParkButton.IsEnabled = hasJobs;
         FullCheckoutButton.IsEnabled = hasJobs;
-        SimpleParkButton.IsEnabled = hasJobs;
-        SimpleCheckoutButton.IsEnabled = hasJobs;
+        CompactParkButton.IsEnabled = hasJobs;
+        CompactCheckoutButton.IsEnabled = hasJobs;
         MinimalParkButton.IsEnabled = hasJobs;
         MinimalCheckoutButton.IsEnabled = hasJobs;
     }
@@ -560,7 +565,7 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ parked chips overflow (+N)
 
-    /// <summary>一处「未结账单 chip 列表 + 溢出折叠」的元素引用与状态（完整/简洁/极简各一份）。</summary>
+    /// <summary>一处「未结账单 chip 列表 + 溢出折叠」的元素引用与状态（完整/紧凑/极简各一份）。</summary>
     private sealed class ChipOverflowStrip
     {
         public ChipOverflowStrip(FrameworkElement panel, Grid host, ItemsControl items, Button overflowButton, Popup popup, DataTemplate chipTemplate)
@@ -1258,11 +1263,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void SimpleMode_Click(object sender, RoutedEventArgs e)
+    private async void CompactMode_Click(object sender, RoutedEventArgs e)
     {
-        if (_mode != UiMode.Simple)
+        if (_mode != UiMode.Compact)
         {
-            await SetModeAsync(UiMode.Simple);
+            await SetModeAsync(UiMode.Compact);
         }
     }
 
@@ -1276,9 +1281,9 @@ public partial class MainWindow : Window
 
     private void UpdateModeSwitchButtons()
     {
-        SetModeBar(FullModeFullButton, FullModeSimpleButton, FullModeMinimalButton);
-        SetModeBar(SimpleModeFullButton, SimpleModeSimpleButton, SimpleModeMinimalButton);
-        SetDarkModeBar(MinimalModeFullButton, MinimalModeSimpleButton, MinimalModeMinimalButton);
+        SetModeBar(FullModeFullButton, FullModeCompactButton, FullModeMinimalButton);
+        SetModeBar(CompactModeFullButton, CompactModeCompactButton, CompactModeMinimalButton);
+        SetDarkModeBar(MinimalModeFullButton, MinimalModeCompactButton, MinimalModeMinimalButton);
     }
 
     private void SetModeBar(params Button[] buttons)
@@ -1308,7 +1313,7 @@ public partial class MainWindow : Window
 
     private static UiMode ModeFromButton(Button button) => button.Tag switch
     {
-        "Simple" => UiMode.Simple,
+        "Compact" => UiMode.Compact,
         "Minimal" => UiMode.Minimal,
         _ => UiMode.Full,
     };
@@ -1361,7 +1366,7 @@ public partial class MainWindow : Window
             _mode = mode;
             UpdateModeSwitchButtons();
             FullLayout.Visibility = mode == UiMode.Full ? Visibility.Visible : Visibility.Collapsed;
-            SimpleLayout.Visibility = mode == UiMode.Simple ? Visibility.Visible : Visibility.Collapsed;
+            CompactLayout.Visibility = mode == UiMode.Compact ? Visibility.Visible : Visibility.Collapsed;
             MinimalLayout.Visibility = mode == UiMode.Minimal ? Visibility.Visible : Visibility.Collapsed;
 
             if (mode == UiMode.Minimal)
@@ -1399,9 +1404,9 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    // 简洁模式默认尺寸与当前紧凑布局匹配（贴边账单条 + 紧凑列表）
-                    Width = await GetDoubleSettingAsync("simpleWidth", 776);
-                    Height = await GetDoubleSettingAsync("simpleHeight", 436);
+                    // 紧凑模式默认尺寸与当前紧凑布局匹配（贴边账单条 + 紧凑列表）
+                    Width = await GetDoubleSettingAsync("compactWidth", 776);
+                    Height = await GetDoubleSettingAsync("compactHeight", 436);
                 }
             }
 
@@ -1412,7 +1417,7 @@ public partial class MainWindow : Window
             Height = Math.Min(Math.Max(Height, MinHeight), maxHeight);
             if (mode != UiMode.Minimal)
             {
-                // 切换到完整/简洁模式时居中于主屏工作区；极简模式保持右下角记忆位置。
+                // 切换到完整/紧凑模式时居中于主屏工作区；极简模式保持右下角记忆位置。
                 Left = workArea.Left + (workArea.Width - Width) / 2;
                 Top = workArea.Top + (workArea.Height - Height) / 2;
             }
@@ -1459,7 +1464,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var prefix = _mode == UiMode.Full ? "full" : "simple";
+        var prefix = _mode == UiMode.Full ? "full" : "compact";
         var left = Left;
         var top = Top;
         var width = Width;
@@ -1534,7 +1539,7 @@ public partial class MainWindow : Window
         const string pinGlyph = "\uE718";
         const string pinnedGlyph = "\uE840";
 
-        foreach (var button in new[] { FullPinButton, SimplePinButton, MinimalPinButton })
+        foreach (var button in new[] { FullPinButton, CompactPinButton, MinimalPinButton })
         {
             button.Content = Topmost ? pinnedGlyph : pinGlyph;
             button.ToolTip = Topmost ? "取消置顶" : "置顶";
@@ -1544,7 +1549,7 @@ public partial class MainWindow : Window
     private static string TopmostKey(UiMode mode) => mode switch
     {
         UiMode.Full => "topmost.full",
-        UiMode.Simple => "topmost.simple",
+        UiMode.Compact => "topmost.compact",
         _ => "topmost.minimal",
     };
 

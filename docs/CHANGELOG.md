@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-01 — 「简洁模式」更名为「紧凑模式」
+
+- 代码与界面全量更名：`UiMode.Simple` → `Compact`、`SimpleLayout` → `CompactLayout`、
+  `SimpleJobsGrid` → `CompactJobsGrid` 等标识符与按钮提示 / 自动化名称 / 托盘菜单文案同步。
+- 持久化键更名：`simpleWidth/Height` → `compactWidth/Height`、`topmost.simple` → `topmost.compact`；
+  旧设置值 `uiMode="Simple"` 启动时自动映射为 `Compact`，历史键自然失效（走新默认值）。
+- 模式语义不变：紧凑模式 = 贴边紧凑布局的精简工作台。
+
+---
+
 ## 2026-11-01 — 简洁模式紧凑化
 
 - 去卡片化贴边布局：账单条与任务表直接贴边（移除四周留白、圆角卡片与阴影），
