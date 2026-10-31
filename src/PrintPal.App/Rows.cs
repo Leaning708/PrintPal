@@ -1,21 +1,35 @@
+using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using PrintPal.Core;
 
 namespace PrintPal.App;
 
-public sealed class BillChipRow
+public sealed class BillChipRow : INotifyPropertyChanged
 {
-    public BillChipRow(BillSummary summary)
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public BillChipRow(BillSummary summary, int index)
     {
         Summary = summary;
+        IndexText = index.ToString();
     }
 
-    public BillSummary Summary { get; }
+    public BillSummary Summary { get; private set; }
 
     public Guid Id => Summary.Id;
 
     public string Name => Summary.Name;
+
+    /// <summary>账单序号，按建单顺序稳定编号，切换当前账单不改变（账单切换列表展示用）。</summary>
+    public string IndexText { get; }
+
+    /// <summary>是否为当前正在记账的账单（列表中高亮，点击不切换）。</summary>
+    public bool IsCurrent => Summary.Status == BillStatus.Active;
+
+    public string AmountText => Money.FormatCents(Summary.AmountCents);
+
+    public string ParkedTimeText => Summary.ParkedAtUtc is { } at ? at.ToLocalTime().ToString("HH:mm") : "";
 
     public string ChipText => $"{Summary.Name}  {Money.FormatCents(Summary.AmountCents)}";
 
@@ -23,9 +37,39 @@ public sealed class BillChipRow
     {
         get
         {
+            if (IsCurrent)
+            {
+                return $"当前账单 · {AmountText} · {Summary.JobCount} 单";
+            }
+
             var parked = Summary.ParkedAtUtc is { } at ? $" · 挂起 {at.ToLocalTime():HH:mm}" : string.Empty;
-            return $"{Money.FormatCents(Summary.AmountCents)} · {Summary.JobCount} 单{parked}\n点击取回";
+            return $"{AmountText} · {Summary.JobCount} 单{parked}\n点击切换到该账单";
         }
+    }
+
+    /// <summary>
+    /// 原地更新账单汇总并通知绑定刷新。成员不变时（切换当前账单、金额变动等）
+    /// 不重建集合：chip 容器不重新生成，高亮平滑移动，溢出区不会闪现一帧。
+    /// </summary>
+    public void UpdateFrom(BillSummary summary)
+    {
+        if (Summary.Id != summary.Id)
+        {
+            return;
+        }
+
+        var changed = Summary.Status != summary.Status ||
+                      Summary.Name != summary.Name ||
+                      Summary.AmountCents != summary.AmountCents ||
+                      Summary.JobCount != summary.JobCount ||
+                      Summary.ParkedAtUtc != summary.ParkedAtUtc;
+        if (!changed)
+        {
+            return;
+        }
+
+        Summary = summary;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
 }
 

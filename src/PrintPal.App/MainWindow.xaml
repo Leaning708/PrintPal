@@ -196,6 +196,13 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- 状态药丸水平居中（文件列表用） -->
+        <DataTemplate x:Key="StatusPillCenteredTemplate">
+            <ContentPresenter Content="{Binding}"
+                              ContentTemplate="{StaticResource StatusPillTemplate}"
+                              HorizontalAlignment="Center" />
+        </DataTemplate>
+
         <DataTemplate x:Key="JobDocumentCell">
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding DocumentName}"
@@ -242,19 +249,124 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- 挂起账单 chip -->
+        <!-- 账单切换 chip：序号 + 名称 金额；当前账单高亮，点击其余 chip 切换 -->
         <DataTemplate x:Key="ParkedBillChipTemplate">
-            <Button Style="{StaticResource ParkedBillChipStyle}"
-                    Content="{Binding ChipText}"
-                    ToolTip="{Binding ToolTip}"
-                    Click="ResumeBill_Click" />
+            <Button ToolTip="{Binding ToolTip}"
+                    Click="SwitchBill_Click">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ParkedBillChipStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding IndexText}" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource SoftMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Setter Property="Foreground" Value="#C7D8FE" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding ChipText}"
+                               Margin="6,0,0,0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
         </DataTemplate>
 
         <DataTemplate x:Key="SmallParkedBillChipTemplate">
-            <Button Style="{StaticResource SmallParkedBillChipStyle}"
-                    Content="{Binding ChipText}"
+            <Button Content="{Binding ChipText}"
                     ToolTip="{Binding ToolTip}"
-                    Click="ResumeBill_Click" />
+                    Click="SwitchBill_Click">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource SmallParkedBillChipStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="White" />
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </DataTemplate>
+
+        <!-- 账单浮层行：序号 | 名称 | 挂起时间 | 金额（金额固定宽右对齐，各行对齐） -->
+        <DataTemplate x:Key="ParkedPopupRowTemplate">
+            <Button ToolTip="{Binding ToolTip}"
+                    Click="SwitchBill_Click">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource ParkedPopupRowStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                <Setter Property="Background" Value="#EEF4FF" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="44" />
+                        <ColumnDefinition Width="64" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding IndexText}" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource SoftMutedBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Name}"
+                               FontWeight="SemiBold"
+                               FontSize="12.5"
+                               Margin="0,0,12,0"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding ParkedTimeText}"
+                               Foreground="{StaticResource SoftMutedBrush}"
+                               FontSize="11"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding AmountText}"
+                               Foreground="{StaticResource InkBrush}"
+                               FontWeight="SemiBold"
+                               FontSize="12.5"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </Button>
         </DataTemplate>
 
         <ItemsPanelTemplate x:Key="HorizontalChipPanel">
@@ -266,6 +378,14 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
+        </Style>
+
+        <Style x:Key="AmountCellTextCenter" TargetType="TextBlock" BasedOn="{StaticResource AmountCellText}">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="CenterColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource GridColumnHeaderStyle}">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
         </Style>
 
         <Style x:Key="MutedCellText" TargetType="TextBlock">
@@ -498,52 +618,110 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- billing strip：只在「打印记录」页显示 -->
+                <!-- billing strip：只在「打印记录」页显示。
+                     「当前账单」与「未结账单」共用同一标题行，保证两个小标题水平对齐。 -->
                 <Border x:Name="BillingStrip" Grid.Row="1" Style="{StaticResource CardBorder}" Margin="26,0,26,14" Padding="18,10">
-                    <Grid>
+                    <Grid VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
+                            <!-- MinWidth 给当前账单列留出余量，账单改名时列宽不再频繁跳动 -->
+                            <ColumnDefinition Width="Auto" MinWidth="100" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center" MinWidth="150">
-                            <TextBlock Text="当前账单" Style="{StaticResource SubtleText}" />
-                            <TextBlock x:Name="FullBillNameText"
-                                       Text="客户1"
-                                       FontSize="17"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource InkBrush}"
-                                       Margin="0,2,0,0"
-                                       MaxWidth="220"
-                                       TextTrimming="CharacterEllipsis"
-                                       Cursor="Hand"
-                                       ToolTip="双击改名"
-                                       MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
-                        </StackPanel>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="当前账单" Style="{StaticResource SubtleText}" />
+                        <TextBlock x:Name="FullBillNameText"
+                                   Grid.Row="1" Grid.Column="0"
+                                   Text="客户1"
+                                   FontSize="17"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource InkBrush}"
+                                   Margin="0,3,0,0"
+                                   MaxWidth="220"
+                                   TextTrimming="CharacterEllipsis"
+                                   Cursor="Hand"
+                                   ToolTip="双击改名"
+                                   MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
 
-                        <Grid Grid.Column="1" Margin="22,0,18,0" VerticalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="FullParkedCaptionText"
-                                       Grid.Column="0"
-                                       Text="暂无挂起账单"
-                                       Style="{StaticResource MutedText}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0" />
-                            <ScrollViewer Grid.Column="1"
-                                          HorizontalScrollBarVisibility="Auto"
-                                          VerticalScrollBarVisibility="Disabled"
-                                          VerticalAlignment="Center">
-                                <ItemsControl x:Name="FullParkedBills"
-                                              ItemTemplate="{StaticResource ParkedBillChipTemplate}"
-                                              ItemsPanel="{StaticResource HorizontalChipPanel}" />
-                            </ScrollViewer>
-                        </Grid>
+                        <!-- 账单切换区（方案 B）：未结账单统一展示，chip 一行放满、
+                             溢出的折叠进「+N」浮层；点击 chip/+N 行切换当前账单 -->
+                        <TextBlock x:Name="FullParkedCaptionText"
+                                   Grid.Row="0" Grid.Column="1"
+                                   Text="未结账单"
+                                   Style="{StaticResource SubtleText}"
+                                   Margin="32,0,0,4"
+                                   Visibility="Collapsed" />
+                        <Border x:Name="FullParkedPanel"
+                                Grid.Row="1" Grid.Column="1"
+                                Margin="22,0,18,0"
+                                BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1,0"
+                                SnapsToDevicePixels="True"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid x:Name="FullParkedChipHost" ClipToBounds="True">
+                                    <Grid.ColumnDefinitions>
+                                        <!-- +N 跟随最后一个可见 chip（Auto 列贴内容），不靠右悬空 -->
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ItemsControl Grid.Column="0"
+                                                  x:Name="FullParkedBills"
+                                                  Margin="10,2,0,2"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  ItemTemplate="{StaticResource ParkedBillChipTemplate}"
+                                                  ItemsPanel="{StaticResource HorizontalChipPanel}">
+                                        <ItemsControl.ItemContainerStyle>
+                                            <!-- 新容器默认隐藏：等溢出计算后再显示，避免重建时闪现一帧 -->
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                    </ItemsControl>
+                                    <Button Grid.Column="1"
+                                            x:Name="FullParkedOverflowButton"
+                                            Content="+0"
+                                            Style="{StaticResource ParkedOverflowChipStyle}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,2,10,2"
+                                            Visibility="Collapsed"
+                                            ToolTip="查看全部账单"
+                                            Click="ParkedOverflow_Click" />
+                                </Grid>
+                                <Popup x:Name="FullParkedPopup"
+                                       PlacementTarget="{Binding ElementName=FullParkedPanel}"
+                                       Placement="Bottom"
+                                       VerticalOffset="4"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Background="{StaticResource CardBrush}"
+                                            BorderBrush="{StaticResource LineStrongBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="4"
+                                            Margin="0,0,14,14"
+                                            MinWidth="250"
+                                            MaxWidth="300"
+                                            MaxHeight="330">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="12" ShadowDepth="1" Opacity="0.18" />
+                                        </Border.Effect>
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl x:Name="FullParkedPopupList"
+                                                          ItemTemplate="{StaticResource ParkedPopupRowTemplate}" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
 
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="2" Grid.Row="0" Grid.RowSpan="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                                 <TextBlock Text="本单合计" Style="{StaticResource SubtleText}" HorizontalAlignment="Right" />
                                 <TextBlock x:Name="FullAmountText"
@@ -680,20 +858,24 @@
                                                     </Style>
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
-                                            <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44">
+                                            <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                 <DataGridTextColumn.ElementStyle>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}" />
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                                    </Style>
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
-                                            <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="56" MinWidth="44">
+                                            <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="56" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                 <DataGridTextColumn.ElementStyle>
-                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}" />
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
+                                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                                    </Style>
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
-                                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="55" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
+                                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="55" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                 <DataGridTemplateColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
+                                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellTextCenter}" />
                                                     </DataTemplate>
                                                 </DataGridTemplateColumn.CellTemplate>
                                             </DataGridTemplateColumn>
@@ -704,7 +886,7 @@
                                                     </Style>
                                                 </DataGridTextColumn.ElementStyle>
                                             </DataGridTextColumn>
-                                            <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
+                                            <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" HeaderStyle="{StaticResource CenterColumnHeaderStyle}" CellTemplate="{StaticResource StatusPillCenteredTemplate}" />
                                         </DataGrid.Columns>
                                     </DataGrid>
 
@@ -1379,36 +1561,101 @@
             </Border>
 
             <Border Grid.Row="1" Style="{StaticResource CardBorder}" Margin="16,14,16,0" Padding="20,12">
-                <Grid>
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <!-- MinWidth 给当前账单列留出余量，账单改名时列宽不再频繁跳动 -->
+                        <ColumnDefinition Width="Auto" MinWidth="100" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="当前账单" Style="{StaticResource SubtleText}" />
-                            <TextBlock x:Name="SimpleCurrentTagText"
-                                       Text="客户1"
-                                       FontSize="17"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource InkBrush}"
-                                       Margin="0,2,0,0"
-                                       Cursor="Hand"
-                                       ToolTip="双击改名"
-                                       MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="SimpleAmountText"
-                                       Text="¥0.00"
-                                       FontSize="30"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="当前账单" Style="{StaticResource SubtleText}" />
+                    <TextBlock x:Name="SimpleCurrentTagText"
+                               Grid.Row="1" Grid.Column="0"
+                               Text="客户1"
+                               FontSize="17"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource InkBrush}"
+                               Margin="0,3,0,0"
+                               Cursor="Hand"
+                               ToolTip="双击改名"
+                               MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
+
+                    <!-- 未结账单区：与当前账单平行展示（同完整模式），标题在上 + 序号 chip + 溢出折叠 +N -->
+                    <TextBlock x:Name="SimpleParkedCaptionText"
+                               Grid.Row="0" Grid.Column="1"
+                               Text="未结账单"
+                               Style="{StaticResource SubtleText}"
+                               Margin="32,0,0,4"
+                               Visibility="Collapsed" />
+                    <Border x:Name="SimpleParkedPanel"
+                            Grid.Row="1" Grid.Column="1"
+                            Margin="22,0,18,0"
+                            BorderBrush="{StaticResource LineBrush}"
+                            BorderThickness="1,0"
+                            SnapsToDevicePixels="True"
+                            Visibility="Collapsed">
+                            <Grid>
+                                <Grid x:Name="SimpleParkedChipHost" ClipToBounds="True">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ItemsControl Grid.Column="0"
+                                                  x:Name="SimpleParkedBills"
+                                                  Margin="10,2,0,2"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  ItemTemplate="{StaticResource ParkedBillChipTemplate}"
+                                                  ItemsPanel="{StaticResource HorizontalChipPanel}">
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                    </ItemsControl>
+                                    <Button Grid.Column="1"
+                                            x:Name="SimpleParkedOverflowButton"
+                                            Content="+0"
+                                            Style="{StaticResource ParkedOverflowChipStyle}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,2,10,2"
+                                            Visibility="Collapsed"
+                                            ToolTip="查看全部账单"
+                                            Click="ParkedOverflow_Click" />
+                                </Grid>
+                                <Popup x:Name="SimpleParkedPopup"
+                                       PlacementTarget="{Binding ElementName=SimpleParkedOverflowButton}"
+                                       Placement="Bottom"
+                                       VerticalOffset="4"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Style="{StaticResource ParkedPopupCardStyle}">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl x:Name="SimpleParkedPopupList"
+                                                          ItemTemplate="{StaticResource ParkedPopupRowTemplate}" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                <TextBlock Text="本单合计" Style="{StaticResource SubtleText}" HorizontalAlignment="Right" />
+                                <TextBlock x:Name="SimpleAmountText"
+                                           Text="¥0.00"
+                                           FontSize="30"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,2,0,0" />
+                            </StackPanel>
                             <Button x:Name="SimpleParkButton"
                                     Content="挂起"
                                     Height="42"
@@ -1419,28 +1666,6 @@
                             <Button x:Name="SimpleCheckoutButton"
                                     Content="结账" Style="{StaticResource PrimaryButton}" Height="42" Width="96" Margin="0" Click="Checkout_Click" />
                         </StackPanel>
-                    </Grid>
-
-                    <Grid x:Name="SimpleParkedPanel" Grid.Row="1" Margin="0,10,0,0" Visibility="Collapsed">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="SimpleParkedCaptionText"
-                                   Grid.Column="0"
-                                   Text="已挂起 0"
-                                   Style="{StaticResource MutedText}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,10,0" />
-                        <ScrollViewer Grid.Column="1"
-                                      HorizontalScrollBarVisibility="Auto"
-                                      VerticalScrollBarVisibility="Disabled"
-                                      VerticalAlignment="Center">
-                            <ItemsControl x:Name="SimpleParkedBills"
-                                          ItemTemplate="{StaticResource ParkedBillChipTemplate}"
-                                          ItemsPanel="{StaticResource HorizontalChipPanel}" />
-                        </ScrollViewer>
-                    </Grid>
                 </Grid>
             </Border>
 
@@ -1450,16 +1675,28 @@
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCell}" />
                             <DataGridTextColumn Header="规格" Binding="{Binding SpecText}" Width="158" MinWidth="111" />
-                            <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44" />
-                            <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="56" MinWidth="44" />
-                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="55" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
+                            <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="56" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="份数" Binding="{Binding Copies}" Width="56" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="55" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
+                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellTextCenter}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
+                            <DataGridTemplateColumn Header="状态" Width="92" MinWidth="64" HeaderStyle="{StaticResource CenterColumnHeaderStyle}" CellTemplate="{StaticResource StatusPillCenteredTemplate}" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -1581,6 +1818,7 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- 未结账单区：小型 chip + 溢出折叠 +N（与完整/简洁模式同一方案，深色配色） -->
                     <Grid x:Name="MinimalParkedPanel" Grid.Row="1" Margin="0,8,0,0" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -1588,19 +1826,60 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="MinimalParkedCaptionText"
                                    Grid.Column="0"
-                                   Text="挂起 0"
+                                   Text="未结账单"
                                    Foreground="#94A3B8"
                                    FontSize="11"
                                    VerticalAlignment="Center"
-                                   Margin="0,0,6,0" />
-                        <ScrollViewer Grid.Column="1"
-                                      HorizontalScrollBarVisibility="Auto"
-                                      VerticalScrollBarVisibility="Disabled"
-                                      VerticalAlignment="Center">
-                            <ItemsControl x:Name="MinimalParkedBills"
-                                          ItemTemplate="{StaticResource SmallParkedBillChipTemplate}"
-                                          ItemsPanel="{StaticResource HorizontalChipPanel}" />
-                        </ScrollViewer>
+                                   Margin="0,0,8,0" />
+                        <Border Grid.Column="1"
+                                BorderBrush="#334155"
+                                BorderThickness="1,0,0,0"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid x:Name="MinimalParkedChipHost" ClipToBounds="True">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ItemsControl Grid.Column="0"
+                                                  x:Name="MinimalParkedBills"
+                                                  Margin="10,1,0,1"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  ItemTemplate="{StaticResource SmallParkedBillChipTemplate}"
+                                                  ItemsPanel="{StaticResource HorizontalChipPanel}">
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                    </ItemsControl>
+                                    <Button Grid.Column="1"
+                                            x:Name="MinimalParkedOverflowButton"
+                                            Content="+0"
+                                            Style="{StaticResource MinimalParkedOverflowChipStyle}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,1,10,1"
+                                            Visibility="Collapsed"
+                                            ToolTip="查看全部账单"
+                                            Click="ParkedOverflow_Click" />
+                                </Grid>
+                                <Popup x:Name="MinimalParkedPopup"
+                                       PlacementTarget="{Binding ElementName=MinimalParkedOverflowButton}"
+                                       Placement="Bottom"
+                                       VerticalOffset="4"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Fade">
+                                    <Border Style="{StaticResource ParkedPopupCardStyle}">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsControl x:Name="MinimalParkedPopupList"
+                                                          ItemTemplate="{StaticResource ParkedPopupRowTemplate}" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                        </Border>
                     </Grid>
 
                     <TextBlock x:Name="MinimalAmountText"

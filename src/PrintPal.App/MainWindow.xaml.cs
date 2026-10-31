@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shell;
@@ -29,7 +30,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<PrinterRow> _printerRows = new();
     private readonly ObservableCollection<RoutingRow> _routingRows = new();
     private readonly ObservableCollection<PriceRow> _priceRows = new();
-    private readonly ObservableCollection<BillChipRow> _parkedBills = new();
+    private readonly ObservableCollection<BillChipRow> _openBillChips = new();
     private readonly ObservableCollection<ClosedBillRow> _closedBillRows = new();
     private readonly ObservableCollection<JobRow> _historyJobRows = new();
     private readonly List<JobRow> _allJobs = new();
@@ -75,9 +76,27 @@ public partial class MainWindow : Window
         PricesGrid.ItemsSource = _priceRows;
         HistoryGrid.ItemsSource = _closedBillRows;
         HistoryJobsGrid.ItemsSource = _historyJobRows;
-        FullParkedBills.ItemsSource = _parkedBills;
-        SimpleParkedBills.ItemsSource = _parkedBills;
-        MinimalParkedBills.ItemsSource = _parkedBills;
+        FullParkedBills.ItemsSource = _openBillChips;
+        SimpleParkedBills.ItemsSource = _openBillChips;
+        MinimalParkedBills.ItemsSource = _openBillChips;
+        FullParkedPopupList.ItemsSource = _openBillChips;
+        SimpleParkedPopupList.ItemsSource = _openBillChips;
+        MinimalParkedPopupList.ItemsSource = _openBillChips;
+
+        _chipStrips.Add(new ChipOverflowStrip(
+            FullParkedPanel, FullParkedChipHost, FullParkedBills, FullParkedOverflowButton, FullParkedPopup,
+            (DataTemplate)FindResource("ParkedBillChipTemplate")));
+        _chipStrips.Add(new ChipOverflowStrip(
+            SimpleParkedPanel, SimpleParkedChipHost, SimpleParkedBills, SimpleParkedOverflowButton, SimpleParkedPopup,
+            (DataTemplate)FindResource("ParkedBillChipTemplate")));
+        _chipStrips.Add(new ChipOverflowStrip(
+            MinimalParkedPanel, MinimalParkedChipHost, MinimalParkedBills, MinimalParkedOverflowButton, MinimalParkedPopup,
+            (DataTemplate)FindResource("SmallParkedBillChipTemplate")));
+        foreach (var strip in _chipStrips)
+        {
+            strip.Panel.SizeChanged += (_, _) => ScheduleParkedChipOverflowUpdate();
+            strip.Host.LayoutUpdated += OnChipHostLayoutUpdated;
+        }
 
         IppUriText.Text = agent.IppUri;
         DataDirText.Text = agent.Options.DataDirectory;
@@ -388,7 +407,7 @@ public partial class MainWindow : Window
             _priceRules = (await pricesTask).ToList();
             _closedBills = (await closedBillsTask).ToList();
 
-            SyncParkedBills();
+            SyncOpenBillChips();
 
             var printerNames = _printers.ToDictionary(printer => printer.Id, printer => printer.Name);
             _allJobs.Clear();
@@ -462,7 +481,6 @@ public partial class MainWindow : Window
         var amount = _allJobs.Sum(row => row.Job.AmountCents);
         var count = _allJobs.Count;
         var amountText = Money.FormatCents(amount);
-        var parked = _parkedBills.Count;
         var name = _currentBill?.Name ?? "未开单";
 
         FullBillNameText.Text = name;
@@ -475,11 +493,13 @@ public partial class MainWindow : Window
         MinimalBillNameText.Text = name;
         MinimalAmountText.Text = amountText;
 
-        FullParkedCaptionText.Text = parked == 0 ? "暂无挂起账单" : $"已挂起 {parked}";
-        SimpleParkedCaptionText.Text = $"已挂起 {parked}";
-        SimpleParkedPanel.Visibility = parked == 0 ? Visibility.Collapsed : Visibility.Visible;
-        MinimalParkedPanel.Visibility = parked == 0 ? Visibility.Collapsed : Visibility.Visible;
-        MinimalParkedCaptionText.Text = $"挂起 {parked}";
+        // 账单切换列表：只要有未结账单就显示（当前账单也在列表里高亮）
+        var billListVisible = _openBillChips.Count > 0;
+        FullParkedCaptionText.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
+        FullParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
+        SimpleParkedCaptionText.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
+        SimpleParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
+        MinimalParkedPanel.Visibility = billListVisible ? Visibility.Visible : Visibility.Collapsed;
 
         var hasJobs = count > 0;
         FullParkButton.IsEnabled = hasJobs;
@@ -493,42 +513,270 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ history filter / details
 
     /// <summary>
-    /// 挂起账单 chip 每 2 秒刷新一次；没有变化时不重建集合，
-    /// 否则容器会被反复断开，点击（包括 UI 自动化）会落到已断开的元素上。
+    /// 账单切换列表每 2 秒刷新一次。列表 = 当前账单 + 挂起账单，按建单顺序稳定排序：
+    /// 切换当前账单只是移动高亮，不改变任何一张的位置。
+    /// 成员不变时原地更新行（容器不重建，避免溢出区闪现一帧）；
+    /// 有增删时才重建，且新容器由 ItemContainerStyle 默认隐藏，等溢出计算后再显示。
     /// </summary>
-    private void SyncParkedBills()
+    private void SyncOpenBillChips()
     {
-        var parked = _openBills.Where(item => item.Status == BillStatus.Parked).ToList();
+        var open = _openBills.OrderBy(item => item.SequenceNumber).ToList();
 
-        var unchanged = parked.Count == _parkedBills.Count;
-        if (unchanged)
+        var sameMembers = open.Count == _openBillChips.Count;
+        if (sameMembers)
         {
-            for (var i = 0; i < parked.Count; i++)
+            for (var i = 0; i < open.Count; i++)
             {
-                var current = _parkedBills[i].Summary;
-                var next = parked[i];
-                if (current.Id != next.Id ||
-                    current.Name != next.Name ||
-                    current.AmountCents != next.AmountCents ||
-                    current.JobCount != next.JobCount ||
-                    current.ParkedAtUtc != next.ParkedAtUtc)
+                if (_openBillChips[i].Summary.Id != open[i].Id)
                 {
-                    unchanged = false;
+                    sameMembers = false;
                     break;
                 }
             }
         }
 
-        if (unchanged)
+        if (sameMembers)
+        {
+            for (var i = 0; i < open.Count; i++)
+            {
+                _openBillChips[i].UpdateFrom(open[i]);
+            }
+        }
+        else
+        {
+            _openBillChips.Clear();
+            for (var i = 0; i < open.Count; i++)
+            {
+                _openBillChips.Add(new BillChipRow(open[i], i + 1));
+            }
+
+            if (_openBillChips.Count == 0)
+            {
+                CloseBillPopups();
+            }
+        }
+
+        ScheduleParkedChipOverflowUpdate();
+    }
+
+    // ------------------------------------------------------------------ parked chips overflow (+N)
+
+    /// <summary>一处「未结账单 chip 列表 + 溢出折叠」的元素引用与状态（完整/简洁/极简各一份）。</summary>
+    private sealed class ChipOverflowStrip
+    {
+        public ChipOverflowStrip(FrameworkElement panel, Grid host, ItemsControl items, Button overflowButton, Popup popup, DataTemplate chipTemplate)
+        {
+            Panel = panel;
+            Host = host;
+            Items = items;
+            OverflowButton = overflowButton;
+            Popup = popup;
+            ChipTemplate = chipTemplate;
+        }
+
+        public FrameworkElement Panel { get; }
+        public Grid Host { get; }
+        public ItemsControl Items { get; }
+        public Button OverflowButton { get; }
+        public Popup Popup { get; }
+        public DataTemplate ChipTemplate { get; }
+
+        public int Fit { get; set; }
+        public double LastHostWidth { get; set; } = -1;
+        public int LastTotal { get; set; } = -1;
+    }
+
+    private readonly List<ChipOverflowStrip> _chipStrips = new();
+
+    /// <summary>
+    /// 方案 B：chip 一行放满，放不下的折叠进「+N」浮层。
+    /// 容器要等布局生成后才能测量，因此统一延后一拍再算。
+    /// </summary>
+    private void ScheduleParkedChipOverflowUpdate()
+    {
+        Dispatcher.BeginInvoke(new Action(RunParkedChipOverflowUpdate), DispatcherPriority.Loaded);
+    }
+
+    private void RunParkedChipOverflowUpdate()
+    {
+        foreach (var strip in _chipStrips)
+        {
+            UpdateStripOverflow(strip);
+        }
+    }
+
+    private void UpdateStripOverflow(ChipOverflowStrip strip)
+    {
+        if (strip.Panel.Visibility != Visibility.Visible || strip.Host.ActualWidth <= 0)
         {
             return;
         }
 
-        _parkedBills.Clear();
-        foreach (var summary in parked)
+        // chip 宽度用脱离可视树的原型测量：刚重建的容器直接 Measure 拿不到真实宽度。
+        // 原型估计只做初值，随后的 CorrectOverflowFit 按真实排版 ±1 收敛。
+        var total = _openBillChips.Count;
+        var widths = new double[total];
+        for (var i = 0; i < total; i++)
         {
-            _parkedBills.Add(new BillChipRow(summary));
+            widths[i] = MeasureChipWidth(_openBillChips[i], strip.ChipTemplate) + 6; // chip 右侧间距
         }
+
+        double Available(double reserved) => strip.Host.ActualWidth - 20 - reserved; // ItemsControl 左距 10 + 右侧留白 10
+
+        int CountFit(double reserved)
+        {
+            var used = 0d;
+            var count = 0;
+            for (var i = 0; i < total; i++)
+            {
+                if (used + widths[i] > Available(reserved))
+                {
+                    break;
+                }
+
+                used += widths[i];
+                count++;
+            }
+
+            return count;
+        }
+
+        var fit = CountFit(0);
+        if (fit < total)
+        {
+            strip.OverflowButton.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            // chip 自带 6px 右距（已计入 widths），+N 与 chip 的间距 = 该右距，与其他 chip 间一致
+            fit = Math.Max(CountFit(strip.OverflowButton.DesiredSize.Width), 1);
+        }
+
+        ApplyOverflowFit(strip, fit, total);
+        strip.LastHostWidth = strip.Host.ActualWidth;
+        strip.LastTotal = total;
+    }
+
+    private void ApplyOverflowFit(ChipOverflowStrip strip, int fit, int total)
+    {
+        strip.Fit = fit;
+        for (var i = 0; i < total; i++)
+        {
+            if (strip.Items.ItemContainerGenerator.ContainerFromIndex(i) is ContentPresenter container)
+            {
+                container.Visibility = i < fit ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        var overflow = fit < total;
+        strip.OverflowButton.Visibility = overflow ? Visibility.Visible : Visibility.Collapsed;
+        strip.OverflowButton.Content = $"+{total - fit}";
+    }
+
+    /// <summary>
+    /// 布局后的实况校正：原型估宽与真实排版存在像素级误差，临界宽度会少放一张。
+    /// 这里按宿主真实剩余空间每次 ±1 收敛——只动真正放得下/放不下的那一张，
+    /// 不重建集合，也不会出现整批 chip 闪现。
+    /// </summary>
+    private void CorrectOverflowFit(ChipOverflowStrip strip)
+    {
+        if (strip.Panel.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        var total = _openBillChips.Count;
+        var fit = strip.Fit;
+        if (total == 0 || fit <= 0 || fit > total)
+        {
+            return; // 尚未做过全量计算，或没有可调整的余量
+        }
+
+        // 真实剩余 = 宿主宽 - 左距10 - 可见 chip 实际宽 - [+N按钮 + 右距10 | 右侧留白10]
+        var free = strip.Host.ActualWidth
+                   - 10
+                   - strip.Items.ActualWidth
+                   - (strip.OverflowButton.Visibility == Visibility.Visible
+                       ? strip.OverflowButton.ActualWidth + 10
+                       : 10);
+
+        if (free < 0 && fit > 1)
+        {
+            ApplyOverflowFit(strip, fit - 1, total);
+        }
+        else if (strip.OverflowButton.Visibility == Visibility.Visible && fit < total)
+        {
+            var nextWidth = MeasureChipWidth(_openBillChips[fit], strip.ChipTemplate) + 6;
+            if (free >= nextWidth)
+            {
+                ApplyOverflowFit(strip, fit + 1, total);
+            }
+        }
+    }
+
+    private void ParkedOverflow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        var strip = _chipStrips.FirstOrDefault(item => item.OverflowButton == button);
+        if (strip is null)
+        {
+            return;
+        }
+
+        if (!strip.Popup.IsOpen)
+        {
+            // 浮层右缘对齐账单列表右缘（宽度按 MinWidth 估）
+            strip.Popup.HorizontalOffset = Math.Max(0, strip.Panel.ActualWidth - 260);
+        }
+
+        strip.Popup.IsOpen = !strip.Popup.IsOpen;
+    }
+
+    private void CloseBillPopups()
+    {
+        foreach (var strip in _chipStrips)
+        {
+            strip.Popup.IsOpen = false;
+        }
+    }
+
+    /// <summary>
+    /// 兜底校验：SizeChanged 只覆盖面板自身宽度的变化，拖拽调整/还原/最大化等
+    /// 时序组合下可能出现漏算，这里在宿主每次布局后比较宽度和账单数，变了才全量重算；
+    /// 宽度没变时做一次实况校正（CorrectOverflowFit），消除估计误差。
+    /// </summary>
+    private void OnChipHostLayoutUpdated(object? sender, EventArgs e)
+    {
+        foreach (var strip in _chipStrips)
+        {
+            if (strip.Panel.Visibility != Visibility.Visible)
+            {
+                continue;
+            }
+
+            var width = strip.Host.ActualWidth;
+            var total = _openBillChips.Count;
+            if (width > 0 && (width != strip.LastHostWidth || total != strip.LastTotal))
+            {
+                ScheduleParkedChipOverflowUpdate();
+                return;
+            }
+
+            CorrectOverflowFit(strip);
+        }
+    }
+
+    /// <summary>用 chip 模板实例化一个离屏原型来测量宽度，不受当前布局状态影响。</summary>
+    private double MeasureChipWidth(BillChipRow row, DataTemplate chipTemplate)
+    {
+        var proxy = new ContentPresenter
+        {
+            Content = row,
+            ContentTemplate = chipTemplate,
+        };
+        proxy.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        return proxy.DesiredSize.Width;
     }
 
     private (DateTimeOffset? From, DateTimeOffset? To) GetHistoryRange()
@@ -768,10 +1016,18 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void ResumeBill_Click(object sender, RoutedEventArgs e)
+    /// <summary>点击账单 chip：切换当前显示的账单（旧账单自动挂起，列表位置不变）。</summary>
+    private async void SwitchBill_Click(object sender, RoutedEventArgs e)
     {
 
         if (sender is not Button { DataContext: BillChipRow chip })
+        {
+            return;
+        }
+
+        CloseBillPopups();
+
+        if (chip.IsCurrent)
         {
             return;
         }
@@ -780,11 +1036,11 @@ public partial class MainWindow : Window
         {
             var bill = await _agent.Database.ActivateBillAsync(chip.Id);
             await ReloadAsync();
-            StatusBarText.Text = $"已取回「{bill.Name}」";
+            StatusBarText.Text = $"已切换到「{bill.Name}」";
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"取回失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"切换失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

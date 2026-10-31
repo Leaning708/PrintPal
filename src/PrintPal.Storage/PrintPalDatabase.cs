@@ -419,7 +419,7 @@ public sealed class PrintPalDatabase
         return await GetActiveBillAsync(connection, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>返回当前账单；一张都没有时创建 <c>客户N</c>。</summary>
+    /// <summary>返回当前账单；一张都没有时创建一张名为「散客」的账单。</summary>
     public async Task<Bill> EnsureActiveBillAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -855,7 +855,10 @@ public sealed class PrintPalDatabase
         var bill = new Bill
         {
             SequenceNumber = sequence,
-            Name = $"客户{sequence}",
+
+            // 新账单默认都是散客，具体是哪位客人由店员双击改名；
+            // 列表里靠序号区分（1 散客、2 散客……）
+            Name = "散客",
             Status = status,
             CreatedAtUtc = now,
             ParkedAtUtc = status == BillStatus.Parked ? now : null,

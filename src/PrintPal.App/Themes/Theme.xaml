@@ -515,6 +515,50 @@
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridColumnHeader">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              SnapsToDevicePixels="True" />
+                        </Border>
+                        <!-- 列间短分隔线：不满高，居中一小段即可辨识 -->
+                        <Rectangle Width="1"
+                                   Height="12"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Fill="{TemplateBinding BorderBrush}"
+                                   SnapsToDevicePixels="True"
+                                   IsHitTestVisible="False" />
+                        <Thumb x:Name="PART_LeftHeaderGripper"
+                               HorizontalAlignment="Left" Width="8"
+                               Cursor="SizeWE"
+                               Visibility="Collapsed">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Rectangle Fill="Transparent" />
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                        <Thumb x:Name="PART_RightHeaderGripper"
+                               HorizontalAlignment="Right" Width="8"
+                               Cursor="SizeWE">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Rectangle Fill="Transparent" />
+                                </ControlTemplate>
+                            </Thumb.Template>
+                        </Thumb>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- 金额列表头右对齐，与右对齐的金额单元格对齐 -->
@@ -730,6 +774,54 @@
         <Setter Property="Background" Value="#1E293B" />
         <Setter Property="Foreground" Value="#CBD5E1" />
         <Setter Property="BorderBrush" Value="#334155" />
+    </Style>
+
+    <!-- 挂单溢出折叠按钮「+N」：与挂单 chip 同款外观，点击弹出全部挂单浮层 -->
+    <Style x:Key="ParkedOverflowChipStyle" TargetType="Button" BasedOn="{StaticResource ParkedBillChipStyle}">
+        <Setter Property="MinWidth" Value="44" />
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+    </Style>
+
+    <!-- 极简模式的小号「+N」：与小型挂单 chip 同款深色外观 -->
+    <Style x:Key="MinimalParkedOverflowChipStyle" TargetType="Button" BasedOn="{StaticResource ParkedOverflowChipStyle}">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="MinWidth" Value="36" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Background" Value="#1E293B" />
+        <Setter Property="Foreground" Value="#CBD5E1" />
+        <Setter Property="BorderBrush" Value="#334155" />
+    </Style>
+
+    <!-- 账单浮层卡片：完整/简洁/极简三处共用 -->
+    <Style x:Key="ParkedPopupCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource LineStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="4" />
+        <Setter Property="Margin" Value="0,0,14,14" />
+        <Setter Property="MinWidth" Value="250" />
+        <Setter Property="MaxWidth" Value="300" />
+        <Setter Property="MaxHeight" Value="330" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="12" ShadowDepth="1" Opacity="0.18" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 挂单浮层行：整行可点取回，悬停高亮 -->
+    <Style x:Key="ParkedPopupRowStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="ToolTipService.ShowDuration" Value="10000" />
     </Style>
 
 </ResourceDictionary>
