@@ -414,9 +414,9 @@
             <!-- ================= main -->
             <Border x:Name="MainSurface"
                     Grid.Column="1"
-                    Margin="6"
+                    Margin="3"
                     Background="{StaticResource PageBackgroundBrush}"
-                    CornerRadius="2"
+                    CornerRadius="3"
                     ClipToBounds="True"
                     SizeChanged="MainSurface_SizeChanged">
                 <Grid>
@@ -520,10 +520,6 @@
                                        Cursor="Hand"
                                        ToolTip="双击改名"
                                        MouseLeftButtonDown="BillName_MouseLeftButtonDown" />
-                            <TextBlock x:Name="FullBillMetaText"
-                                       Text="¥0.00 · 0 单 · 0 张"
-                                       Style="{StaticResource MutedText}"
-                                       Margin="0,2,0,0" />
                         </StackPanel>
 
                         <Grid Grid.Column="1" Margin="22,0,18,0" VerticalAlignment="Center">
@@ -1394,11 +1390,13 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="当前账单" Style="{StaticResource SubtleText}" />
                             <TextBlock x:Name="SimpleCurrentTagText"
-                                       Text="当前账单：客户1"
+                                       Text="客户1"
                                        FontSize="17"
-                                       FontWeight="SemiBold"
+                                       FontWeight="Bold"
                                        Foreground="{StaticResource InkBrush}"
+                                       Margin="0,2,0,0"
                                        Cursor="Hand"
                                        ToolTip="双击改名"
                                        MouseLeftButtonDown="BillName_MouseLeftButtonDown" />

@@ -130,7 +130,7 @@ public partial class MainWindow : Window
             var savedMode = await _agent.Database.GetSettingAsync("uiMode");
             if (Enum.TryParse<UiMode>(savedMode, out var mode))
             {
-                await SetModeAsync(mode, persist: false);
+                await SetModeAsync(mode, persist: false, force: true);
             }
 
             _timer.Start();
@@ -164,18 +164,75 @@ public partial class MainWindow : Window
             Visible = true,
         };
 
-        var menu = new WinForms.ContextMenuStrip();
-        menu.Items.Add("打开 PrintPal", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
-        menu.Items.Add("完整模式", null, (_, _) => Dispatcher.Invoke(async () => await SetModeAsync(UiMode.Full)));
-        menu.Items.Add("简洁模式", null, (_, _) => Dispatcher.Invoke(async () => await SetModeAsync(UiMode.Simple)));
-        menu.Items.Add("极简模式", null, (_, _) => Dispatcher.Invoke(async () => await SetModeAsync(UiMode.Minimal)));
+        var menu = new WinForms.ContextMenuStrip
+        {
+            BackColor = TrayMenuRenderer.Surface,
+            ForeColor = TrayMenuRenderer.TextColor,
+            Font = new System.Drawing.Font("Microsoft YaHei UI", 9F, System.Drawing.FontStyle.Regular,
+                System.Drawing.GraphicsUnit.Point, 134),
+            ShowImageMargin = false,
+            ShowCheckMargin = false,
+            MinimumSize = new System.Drawing.Size(196, 0),
+            Padding = new WinForms.Padding(6, 8, 6, 8),
+            Renderer = new TrayMenuRenderer(),
+            DropShadowEnabled = true,
+        };
+
+        menu.Items.Add(CreateTrayItem("打开 PrintPal", () => ShowFromTray(), bold: true));
         menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add("打开数据目录", null, (_, _) => OpenFolder(_agent.Options.DataDirectory));
+        menu.Items.Add(CreateTrayItem("完整模式", () => _ = SetModeAsync(UiMode.Full)));
+        menu.Items.Add(CreateTrayItem("简洁模式", () => _ = SetModeAsync(UiMode.Simple)));
+        menu.Items.Add(CreateTrayItem("极简模式", () => _ = SetModeAsync(UiMode.Minimal)));
         menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add("退出", null, (_, _) => Dispatcher.Invoke(() => ((App)Application.Current).ExitApplication()));
+        menu.Items.Add(CreateTrayItem("打开数据目录", () => OpenFolder(_agent.Options.DataDirectory)));
+        menu.Items.Add(new WinForms.ToolStripSeparator());
+        menu.Items.Add(CreateTrayItem("退出", () => ((App)Application.Current).ExitApplication()));
+
+        // Round the popup to match the app's card language (Windows 10 does not do it itself).
+        // The shape has to be applied after WinForms has sized the popup, hence BeginInvoke.
+        menu.Opened += (_, _) => menu.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                // Items only auto-size to their text, which would leave the hover highlight
+                // short of the menu edge. Stretch every row to the full menu width first.
+                var innerWidth = menu.ClientSize.Width - menu.Padding.Horizontal;
+                foreach (WinForms.ToolStripItem item in menu.Items)
+                {
+                    item.AutoSize = false;
+                    item.Width = Math.Max(0, innerWidth);
+                }
+
+                menu.PerformLayout();
+
+                var rounded = CreateRoundRectRgn(0, 0, menu.Width + 1, menu.Height + 1, 10, 10);
+                if (rounded != IntPtr.Zero && SetWindowRgn(menu.Handle, rounded, true) == 0)
+                {
+                    DeleteObject(rounded);
+                }
+            }
+            catch
+            {
+                // Cosmetics only; never let them break the tray menu.
+            }
+        }));
 
         _trayIcon.ContextMenuStrip = menu;
         _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
+    }
+
+    private WinForms.ToolStripMenuItem CreateTrayItem(string text, Action action, bool bold = false)
+    {
+        var item = new WinForms.ToolStripMenuItem(text)
+        {
+            Padding = new WinForms.Padding(12, 7, 12, 7),
+            Font = new System.Drawing.Font("Microsoft YaHei UI", 9F,
+                bold ? System.Drawing.FontStyle.Bold : System.Drawing.FontStyle.Regular,
+                System.Drawing.GraphicsUnit.Point, 134),
+        };
+
+        item.Click += (_, _) => Dispatcher.Invoke(action);
+        return item;
     }
 
     private void ShowFromTray()
@@ -404,17 +461,15 @@ public partial class MainWindow : Window
     {
         var amount = _allJobs.Sum(row => row.Job.AmountCents);
         var count = _allJobs.Count;
-        var sheets = _allJobs.Sum(row => row.Job.TotalSheets);
         var amountText = Money.FormatCents(amount);
         var parked = _parkedBills.Count;
         var name = _currentBill?.Name ?? "未开单";
 
         FullBillNameText.Text = name;
-        FullBillMetaText.Text = $"{amountText} · {count} 单 · {sheets} 张";
         FullAmountText.Text = amountText;
         JobsNavCountText.Text = count.ToString();
 
-        SimpleCurrentTagText.Text = $"当前账单：{name}";
+        SimpleCurrentTagText.Text = name;
         SimpleAmountText.Text = amountText;
 
         MinimalBillNameText.Text = name;
@@ -772,12 +827,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        var confirm = MessageBox.Show(
+        var confirmed = MessageDialog.Show(
+            this,
+            "确认结账",
             $"结账「{_currentBill.Name}」？\n\n本次 {_allJobs.Count} 单，金额 {FullAmountText.Text}。\n结账后自动归档，并取回最近挂起的账单。",
-            "PrintPal",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes)
+            "结账",
+            "取消",
+            MessageTone.Question);
+        if (!confirmed)
         {
             return;
         }
@@ -788,19 +845,19 @@ public partial class MainWindow : Window
             var amount = FullAmountText.Text;
             var result = await _agent.Database.CheckoutActiveBillAsync(null);
             await ReloadAsync();
-            MessageBox.Show($"「{label}」已结账：{amount}。\n当前账单：{result.NextBill.Name}",
-                "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageDialog.Info(this, "已结账",
+                $"「{label}」已结账：{amount}。\n当前账单：{result.NextBill.Name}");
         }
         catch (CheckoutBlockedException ex)
         {
             var names = string.Join("\n", ex.BlockingJobs.Take(8)
                 .Select(job => $"{job.DocumentName}（{JobStatusText(job.Status)}）"));
-            MessageBox.Show($"还有未处理的任务，不能结账：\n\n{names}\n\n请先转发完成或删除这些记录。",
-                "PrintPal", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageDialog.Warn(this, "无法结账",
+                $"还有未处理的任务，不能结账：\n\n{names}\n\n请先转发完成或删除这些记录。");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"结账失败：{ex.Message}", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageDialog.Error(this, "结账失败", ex.Message);
         }
     }
 
@@ -936,11 +993,31 @@ public partial class MainWindow : Window
         _ => status.ToString(),
     };
 
-    private async void FullMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Full);
+    // Re-selecting the mode that is already active is a no-op: it must not re-apply
+    // the layout or re-center the window. Only an actual switch does that.
+    private async void FullMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_mode != UiMode.Full)
+        {
+            await SetModeAsync(UiMode.Full);
+        }
+    }
 
-    private async void SimpleMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Simple);
+    private async void SimpleMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_mode != UiMode.Simple)
+        {
+            await SetModeAsync(UiMode.Simple);
+        }
+    }
 
-    private async void MinimalMode_Click(object sender, RoutedEventArgs e) => await SetModeAsync(UiMode.Minimal);
+    private async void MinimalMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (_mode != UiMode.Minimal)
+        {
+            await SetModeAsync(UiMode.Minimal);
+        }
+    }
 
     private void UpdateModeSwitchButtons()
     {
@@ -1008,9 +1085,16 @@ public partial class MainWindow : Window
         UpdateTopmostButtons();
     }
 
-    private async Task SetModeAsync(UiMode mode, bool persist = true)
+    private async Task SetModeAsync(UiMode mode, bool persist = true, bool force = false)
     {
         if (_applyingMode)
+        {
+            return;
+        }
+
+        // Switching to the mode that is already active (button bar, tray menu) must not
+        // re-run layout/centering. Startup restore passes force:true to apply it anyway.
+        if (!force && mode == _mode)
         {
             return;
         }
@@ -1817,6 +1901,15 @@ public partial class MainWindow : Window
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowRgn(IntPtr hwnd, IntPtr region, bool redraw);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr obj);
+
     private static IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         const int WmGetMinMaxInfo = 0x0024;
@@ -1929,6 +2022,106 @@ public partial class MainWindow : Window
         }
 
         base.OnClosed(e);
+    }
+}
+
+/// <summary>
+/// Draws the tray context menu with the same flat, light surface + blue accent language
+/// as the WPF UI instead of the stock grey WinForms look.
+/// </summary>
+internal sealed class TrayMenuRenderer : WinForms.ToolStripRenderer
+{
+    private const int TextPaddingLeft = 14;
+
+    internal static readonly System.Drawing.Color Surface = System.Drawing.Color.White;
+    internal static readonly System.Drawing.Color Hover = System.Drawing.Color.FromArgb(0xEA, 0xF1, 0xFF);
+    internal static readonly System.Drawing.Color Border = System.Drawing.Color.FromArgb(0xE6, 0xEB, 0xF3);
+    internal static readonly System.Drawing.Color TextColor = System.Drawing.Color.FromArgb(0x33, 0x41, 0x55);
+    internal static readonly System.Drawing.Color Accent = System.Drawing.Color.FromArgb(0x1D, 0x4E, 0xD8);
+    internal static readonly System.Drawing.Color Disabled = System.Drawing.Color.FromArgb(0x94, 0xA3, 0xB8);
+
+    protected override void OnRenderToolStripBackground(WinForms.ToolStripRenderEventArgs e)
+    {
+        e.Graphics.Clear(Surface);
+    }
+
+    protected override void OnRenderToolStripBorder(WinForms.ToolStripRenderEventArgs e)
+    {
+        using var pen = new System.Drawing.Pen(Border);
+        var bounds = new System.Drawing.Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var path = RoundedPath(bounds, 9);
+        e.Graphics.DrawPath(pen, path);
+    }
+
+    protected override void OnRenderMenuItemBackground(WinForms.ToolStripItemRenderEventArgs e)
+    {
+        var graphics = e.Graphics;
+        var bounds = new System.Drawing.Rectangle(System.Drawing.Point.Empty, e.Item.Size);
+
+        if (!e.Item.Selected || !e.Item.Enabled)
+        {
+            using var background = new System.Drawing.SolidBrush(Surface);
+            graphics.FillRectangle(background, bounds);
+            return;
+        }
+
+        // Cover the whole item so the highlight reaches the menu edge like a native menu.
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        var highlight = new System.Drawing.Rectangle(
+            1,
+            1,
+            Math.Max(0, bounds.Width - 2),
+            Math.Max(0, bounds.Height - 2));
+        using var path = RoundedPath(highlight, 7);
+        using var fill = new System.Drawing.SolidBrush(Hover);
+        graphics.FillPath(fill, path);
+    }
+
+    protected override void OnRenderItemText(WinForms.ToolStripItemTextRenderEventArgs e)
+    {
+        // Draw the label ourselves, vertically centred over the full item height;
+        // the default renderer uses its own padded text rectangle, which made the
+        // text look top-aligned in these taller items.
+        var color = !e.Item.Enabled ? Disabled : e.Item.Selected ? Accent : TextColor;
+        var textBounds = new System.Drawing.Rectangle(
+            TextPaddingLeft,
+            0,
+            Math.Max(0, e.Item.Width - TextPaddingLeft - 12),
+            e.Item.Height);
+        var flags = WinForms.TextFormatFlags.Left
+            | WinForms.TextFormatFlags.VerticalCenter
+            | WinForms.TextFormatFlags.SingleLine
+            | WinForms.TextFormatFlags.NoPrefix
+            | WinForms.TextFormatFlags.EndEllipsis;
+
+        WinForms.TextRenderer.DrawText(e.Graphics, e.Text, e.Item.Font, textBounds, color, flags);
+    }
+
+    protected override void OnRenderSeparator(WinForms.ToolStripSeparatorRenderEventArgs e)
+    {
+        var y = e.Item.Height / 2;
+        using var pen = new System.Drawing.Pen(Border);
+        e.Graphics.DrawLine(pen, 12, y, e.Item.Width - 12, y);
+    }
+
+    protected override void OnRenderImageMargin(WinForms.ToolStripRenderEventArgs e)
+    {
+        // Items have no icons; keep the whole menu surface flat white.
+    }
+
+    internal static System.Drawing.Drawing2D.GraphicsPath RoundedPath(System.Drawing.Rectangle rect, int radius)
+    {
+        var path = new System.Drawing.Drawing2D.GraphicsPath();
+        var diameter = radius * 2;
+
+        path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
+        path.AddArc(rect.Right - diameter, rect.Y, diameter, diameter, 270, 90);
+        path.AddArc(rect.Right - diameter, rect.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(rect.X, rect.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+
+        return path;
     }
 }
 
