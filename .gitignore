@@ -33,3 +33,6 @@ TestResults/
 # OS
 Thumbs.db
 .DS_Store
+
+# ZCode (AI tool) local state
+.zcode/
