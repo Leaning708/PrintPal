@@ -384,6 +384,17 @@
             <StackPanel Orientation="Horizontal" />
         </ItemsPanelTemplate>
 
+        <!-- 任务列表右键菜单：操作项与任务详情一致（完整/紧凑共用） -->
+        <ContextMenu x:Key="JobContextMenu">
+            <MenuItem Header="转发 / 重试" Click="RetryJob_Click" />
+            <MenuItem Header="选择目标" Click="ChooseTarget_Click" />
+            <MenuItem Header="打开文档" Click="OpenDoc_Click" />
+            <MenuItem Header="打开所在目录" Click="OpenDocFolder_Click" />
+            <MenuItem Header="移到其他账单" Click="MoveJob_Click" />
+            <Separator />
+            <MenuItem Header="删除记录" Click="DeleteJob_Click" />
+        </ContextMenu>
+
         <Style x:Key="AmountCellText" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -859,6 +870,8 @@
                                 <Grid Grid.Row="1">
                                     <DataGrid x:Name="JobsGrid" SelectionChanged="JobsGrid_SelectionChanged"
                                               PreviewMouseLeftButtonDown="JobsGrid_PreviewMouseLeftButtonDown"
+                                              PreviewMouseRightButtonUp="JobGrid_PreviewMouseRightButtonUp"
+                                              ContextMenu="{StaticResource JobContextMenu}"
                                               HorizontalScrollBarVisibility="Auto">
                                         <DataGrid.Columns>
                                             <DataGridTemplateColumn Header="文档" Width="*" MinWidth="160" CellTemplate="{StaticResource JobDocumentCell}" />
@@ -939,7 +952,6 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <Border Grid.Row="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="18,8,10,8">
@@ -970,41 +982,6 @@
                                              Text=""
                                              IsTabStop="False" />
                                 </ScrollViewer>
-
-                                <Border Grid.Row="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="16,12">
-                                    <StackPanel>
-                                        <Button Content="转发 / 重试"
-                                                Style="{StaticResource PrimaryButton}"
-                                                Height="38"
-                                                Margin="0,0,0,8"
-                                                Click="RetryJob_Click" />
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Button Grid.Column="0" Content="选择目标"
-                                                    Margin="0,0,4,0"
-                                                    Height="34"
-                                                    Click="ChooseTarget_Click" />
-                                            <Button Grid.Column="1" Content="打开文档"
-                                                    Margin="4,0,0,0"
-                                                    Height="34"
-                                                    Click="OpenDoc_Click" />
-                                        </Grid>
-                                        <Button x:Name="MoveJobButton"
-                                                Content="移到其他账单"
-                                                Height="34"
-                                                Margin="0,8,0,0"
-                                                ToolTip="这条记录记错了账单时可以改到别的账单"
-                                                Click="MoveJob_Click" />
-                                        <Button Content="删除记录"
-                                                Style="{StaticResource DangerButton}"
-                                                Height="34"
-                                                Margin="0,8,0,0"
-                                                Click="DeleteJob_Click" />
-                                    </StackPanel>
-                                </Border>
                             </Grid>
                         </Border>
                     </Grid>
@@ -1670,7 +1647,9 @@
 
             <Border Grid.Row="2" Background="White">
                 <Grid>
-                    <DataGrid x:Name="CompactJobsGrid" Margin="0" RowHeight="30" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto">
+                    <DataGrid x:Name="CompactJobsGrid" Margin="0" RowHeight="30" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto"
+                              PreviewMouseRightButtonUp="JobGrid_PreviewMouseRightButtonUp"
+                              ContextMenu="{StaticResource JobContextMenu}">
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="文档" Width="*" MinWidth="180" CellTemplate="{StaticResource JobDocumentCellCompact}" />
                             <DataGridTextColumn Header="规格" Binding="{Binding SpecText}" Width="158" MinWidth="111" />

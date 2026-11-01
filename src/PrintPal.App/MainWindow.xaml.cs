@@ -370,7 +370,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var selectedJobId = (JobsGrid.SelectedItem as JobRow)?.Job.Id;
+            var selectedJobId = (ActiveJobsGrid.SelectedItem as JobRow)?.Job.Id;
             var selectedBillId = (HistoryGrid.SelectedItem as ClosedBillRow)?.Bill.Id;
             var selectedPrinterId = (PrintersGrid.SelectedItem as PrinterRow)?.Printer.Id;
             var selectedRoutingId = (RoutingGrid.SelectedItem as RoutingRow)?.Rule.Id;
@@ -931,6 +931,7 @@ public partial class MainWindow : Window
             if (selected is not null)
             {
                 JobsGrid.SelectedItem = selected;
+                CompactJobsGrid.SelectedItem = selected;
                 if (scrollToSelection)
                 {
                     JobsGrid.ScrollIntoView(selected);
@@ -985,17 +986,56 @@ public partial class MainWindow : Window
         UpdateJobDetailsPanel();
     }
 
-    // Clicking a job row brings the closed details panel back.
+    /// <summary>当前生效的任务列表：紧凑模式用紧凑列表，其余用完整列表。</summary>
+    private DataGrid ActiveJobsGrid => _mode == UiMode.Compact ? CompactJobsGrid : JobsGrid;
+
+    private JobRow? SelectedJobRow => ActiveJobsGrid.SelectedItem as JobRow;
+
+    /// <summary>右键任务行先选中该行，再弹出与任务详情一致的操作菜单。</summary>
+    private void JobGrid_PreviewMouseRightButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid grid
+            && ItemsControl.ContainerFromElement(grid, e.OriginalSource as DependencyObject) is DataGridRow row
+            && !row.IsSelected)
+        {
+            grid.SelectedItem = row.Item;
+        }
+    }
+
+    // 点任务行把关闭的详情面板带回来；点列表空白处（含表头排序）自动关闭详情面板。
     private void JobsGrid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (!_detailsClosed || e.OriginalSource is not DependencyObject source)
+        if (e.OriginalSource is not DependencyObject source)
         {
             return;
         }
 
-        if (ItemsControl.ContainerFromElement(JobsGrid, source) is DataGridRow)
+        var onRow = false;
+        for (var d = source; d is not null; d = System.Windows.Media.VisualTreeHelper.GetParent(d))
         {
-            _detailsClosed = false;
+            if (d is DataGridRow)
+            {
+                onRow = true;
+                break;
+            }
+
+            if (d is DataGridColumnHeader)
+            {
+                return; // 表头点击是排序操作，不改变详情面板状态
+            }
+        }
+
+        if (onRow)
+        {
+            if (_detailsClosed)
+            {
+                _detailsClosed = false;
+                UpdateJobDetailsPanel();
+            }
+        }
+        else if (!_detailsClosed)
+        {
+            _detailsClosed = true;
             UpdateJobDetailsPanel();
         }
     }
@@ -1123,7 +1163,7 @@ public partial class MainWindow : Window
 
     private async void MoveJob_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsGrid.SelectedItem is not JobRow row)
+        if (SelectedJobRow is not JobRow row)
         {
             MessageBox.Show("请先选择一条打印记录。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -1595,7 +1635,7 @@ public partial class MainWindow : Window
 
     private async void RetryJob_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsGrid.SelectedItem is not JobRow row)
+        if (SelectedJobRow is not JobRow row)
         {
             MessageBox.Show("请选择任务。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -1635,7 +1675,7 @@ public partial class MainWindow : Window
 
     private async void ChooseTarget_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsGrid.SelectedItem is not JobRow row)
+        if (SelectedJobRow is not JobRow row)
         {
             MessageBox.Show("请选择任务。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -1681,7 +1721,7 @@ public partial class MainWindow : Window
 
     private void OpenDoc_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsGrid.SelectedItem is not JobRow row || string.IsNullOrWhiteSpace(row.Job.DocumentPath))
+        if (SelectedJobRow is not JobRow row || string.IsNullOrWhiteSpace(row.Job.DocumentPath))
         {
             MessageBox.Show("该任务没有文档路径。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
@@ -1693,15 +1733,48 @@ public partial class MainWindow : Window
             return;
         }
 
-        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{row.Job.DocumentPath}\"")
+        // 用系统默认程序直接打开文档
+        Process.Start(new ProcessStartInfo(row.Job.DocumentPath)
         {
             UseShellExecute = true,
         });
     }
 
+    private void OpenDocFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedJobRow is not JobRow row || string.IsNullOrWhiteSpace(row.Job.DocumentPath))
+        {
+            MessageBox.Show("该任务没有文档路径。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var folder = Path.GetDirectoryName(row.Job.DocumentPath);
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+        {
+            MessageBox.Show("文档所在目录已不存在。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (File.Exists(row.Job.DocumentPath))
+        {
+            // 打开所在目录并定位选中该文件，方便确认是哪一份
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{row.Job.DocumentPath}\"")
+            {
+                UseShellExecute = true,
+            });
+        }
+        else
+        {
+            Process.Start(new ProcessStartInfo(folder)
+            {
+                UseShellExecute = true,
+            });
+        }
+    }
+
     private async void DeleteJob_Click(object sender, RoutedEventArgs e)
     {
-        if (JobsGrid.SelectedItem is not JobRow row)
+        if (SelectedJobRow is not JobRow row)
         {
             return;
         }
