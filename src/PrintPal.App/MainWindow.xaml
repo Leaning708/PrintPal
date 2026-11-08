@@ -2687,7 +2687,7 @@
                 CornerRadius="14"
                 ClipToBounds="True">
             <Grid Background="Transparent" MouseLeftButtonDown="MinimalHeader_MouseLeftButtonDown">
-                <Border Height="3" VerticalAlignment="Top" Background="{DynamicResource MinimalTopBarBrush}" CornerRadius="14,14,0,0" />
+                <Border x:Name="MinimalTopBar" Height="3" VerticalAlignment="Top" Background="{DynamicResource MinimalTopBarBrush}" CornerRadius="14,14,0,0" />
                 <Grid Margin="16,14,14,12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

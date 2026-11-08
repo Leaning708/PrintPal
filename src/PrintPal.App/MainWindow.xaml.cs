@@ -2713,6 +2713,7 @@ public partial class MainWindow : Window
                 Width = 316;
                 Height = 186;
                 ConfigureWindowChrome(0, 0);
+                UpdateMinimalCornerRadii();
                 UpdateLayout();
                 await RestoreMinimalPositionAsync();
             }
@@ -2819,6 +2820,20 @@ public partial class MainWindow : Window
             && WindowState != WindowState.Maximized
             && !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
         WindowFrame.BorderThickness = drawFrame ? new Thickness(1) : new Thickness(0);
+    }
+
+    // 极简模式的圆角卡片 + 顶部色条是按 Win11 的 DWM 圆角窗口设计的（XAML 默认 14px）。
+    // Win11 保持原样：这里直接返回，不碰任何圆角；Win10 窗口是直角，保留圆角会在四角
+    // 露出背景色（浅色主题下就是白角），所以只有 Win10 才把两者改成直角、色条与窗口齐边。
+    private void UpdateMinimalCornerRadii()
+    {
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            return;
+        }
+
+        MinimalLayout.CornerRadius = new CornerRadius(0);
+        MinimalTopBar.CornerRadius = new CornerRadius(0);
     }
 
     /// <summary>窗口移动/缩放后防抖保存边界（500ms 静止后落库），任意时刻退出都能恢复最新位置。</summary>
