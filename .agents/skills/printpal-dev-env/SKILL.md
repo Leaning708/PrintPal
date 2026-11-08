@@ -22,7 +22,7 @@ whenToUse: 需要把 PrintPal 跑起来看 UI、造测试数据、恢复用户�
 | FakePrinter | `8631` Fake-A4-Color / `8632` Fake-A4-Mono / `8633` Fake-A3（Raw 9101/9102/9103） |
 | 开发数据 | `<repo>\artifacts\p3\data`（`Start-PrintPalApp.ps1 -Data` 可覆盖） |
 | 服务数据 | `C:\ProgramData\PrintPal` |
-| UI 日志 | `%LOCALAPPDATA%\PrintPal\logs\app.log`（服务模式下 UI 日志仍在这里） |
+| UI 日志 | **跟随 `--data` 目录**：开发启动（默认 `-Data artifacts\p3\data`）写在 `artifacts\p3\data\logs\app.log`，服务模式也一样；裸启动/安装版默认才是 `%LOCALAPPDATA%\PrintPal\logs\app.log`（`App.xaml.cs` 用 `startup.Agent.DataDirectory` 建日志目录） |
 | 服务日志 | `C:\ProgramData\PrintPal\logs\service.log` |
 | FakePrinter 日志/产物 | `artifacts\p2\fake-printers\*.out.log`，收到的 PDF 在 `received\<name>\` |
 

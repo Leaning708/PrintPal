@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-08 — 文档校正：开发启动时 UI 日志位置
+
+- `printpal-dev-env` skill 的环境表原文写「服务模式 UI 日志仍在 `%LOCALAPPDATA%\PrintPal\logs\app.log`」，
+  与实际不符：`App.xaml.cs` 用 `startup.Agent.DataDirectory` 建日志目录，日志**跟随 `--data`**。
+  开发启动（`Start-PrintPalApp.ps1` 默认 `artifacts\p3\data`）时日志在
+  `artifacts\p3\data\logs\app.log`，服务模式也一样；只有裸启动 / 安装版默认才落在
+  `%LOCALAPPDATA%\PrintPal\logs\app.log`。已按实测更正（2026-11-08 22:49 启动后该文件有最新写入）。
+
+---
+
 ## 2026-11-08 — 许可证改为 GPL-3.0
 
 - 新增 `LICENSE`（GNU GPL v3），仓库以 **GPL-3.0** 发布；
