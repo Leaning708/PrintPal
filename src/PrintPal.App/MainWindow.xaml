@@ -512,6 +512,13 @@
     </Window.Resources>
 
     <Grid x:Name="WindowRoot">
+        <!-- 窗口外框：Win10 没有 DWM 阴影/圆角，用 1px 描边给出清晰窗口边界；Win11 由 DWM 负责圆角+阴影，
+             这里不重复画，避免描边在圆角处被 DWM 裁掉。厚度由 MainWindow.xaml.cs 的 UpdateWindowFrame() 切换。 -->
+        <Border x:Name="WindowFrame"
+                BorderBrush="{DynamicResource LineStrongBrush}"
+                BorderThickness="0"
+                SnapsToDevicePixels="True">
+            <Grid x:Name="WindowFrameInner">
         <!-- ======================================================== FULL -->
         <Grid x:Name="FullLayout" Background="{DynamicResource SidebarBrush}">
             <Grid.ColumnDefinitions>
@@ -2403,14 +2410,20 @@
         </Grid>
 
         <!-- ======================================================== SIMPLE -->
-        <Grid x:Name="CompactLayout" Visibility="Collapsed" Background="{DynamicResource CardBrush}">
+        <Grid x:Name="CompactLayout" Visibility="Collapsed" Background="Transparent">
             <Grid.RowDefinitions>
-                <RowDefinition Height="44" />
+                <RowDefinition Height="46" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1">
+            <!-- 标题栏：白底 + 强分隔线；四周留 6px 露出窗口灰边，顶部圆角跟随卡片 -->
+            <Border Grid.Row="0"
+                    Margin="6,6,6,0"
+                    Background="{DynamicResource CardBrush}"
+                    BorderBrush="{DynamicResource LineStrongBrush}"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="6,6,0,0">
                 <!-- 左距 10 与账单条内边距、表头文字内边距对齐；右距 10 与结账按钮右缘对齐 -->
                 <Grid Margin="10,0,10,0">
                     <Grid.ColumnDefinitions>
@@ -2470,6 +2483,12 @@
                                 ToolTip="置顶"
                                 WindowChrome.IsHitTestVisibleInChrome="True"
                                 Click="TopmostToggle_Click" />
+                        <!-- 与窗口按钮组分隔：模式/置顶属“应用功能”，最小化/最大化/关闭属“窗口控制” -->
+                        <Rectangle Width="1"
+                                   Height="18"
+                                   Margin="8,0,4,0"
+                                   VerticalAlignment="Center"
+                                   Fill="{DynamicResource LineBrush}" />
                         <Button Style="{StaticResource WindowControlButton}"
                                 Content="&#xE921;"
                                 WindowChrome.IsHitTestVisibleInChrome="True"
@@ -2492,8 +2511,13 @@
                 </Grid>
             </Border>
 
-            <!-- 账单条：平贴工具条（无卡片装饰），底部发丝线与任务表分隔 -->
-            <Border Grid.Row="1" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1" Padding="10,8">
+            <!-- 结账栏：白底 + 发丝线（与表头灰带、表格内容白底分层）；左右留 6px 灰边 -->
+            <Border Grid.Row="1"
+                    Margin="6,0,6,0"
+                    Background="{DynamicResource CardBrush}"
+                    BorderBrush="{DynamicResource LineBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="12,10">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <!-- MinWidth 给当前账单列留出余量，账单改名时列宽不再频繁跳动 -->
@@ -2567,30 +2591,36 @@
                             </Grid>
                         </Border>
 
+                        <!-- 金额 + 结账是收银台的视觉终点：金额放大、结账为主按钮、挂起降级为浅底次按钮 -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock x:Name="CompactAmountText"
                                        Text="¥0.00"
-                                       FontSize="22"
+                                       FontSize="24"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource AccentBrush}"
                                        VerticalAlignment="Center"
-                                       Margin="0,0,14,0" />
+                                       Margin="0,0,18,0" />
                             <Button x:Name="CompactParkButton"
                                     Content="挂起"
+                                    Style="{StaticResource SubtleButton}"
                                     Height="34"
                                     Width="76"
-                                    Margin="0,0,6,0"
+                                    Margin="0,0,8,0"
                                     ToolTip="把当前账单挂起，并给下一位客户开一张新账单"
                                     Click="ParkBill_Click" />
                             <Button x:Name="CompactCheckoutButton"
-                                    Content="结账" Style="{StaticResource PrimaryButton}" Height="34" Width="84" Margin="0" Click="Checkout_Click" />
+                                    Content="结账" Style="{StaticResource PrimaryButton}" Height="36" Width="96" Margin="0" Click="Checkout_Click" />
                         </StackPanel>
                 </Grid>
             </Border>
 
-            <Border Grid.Row="2" Background="{DynamicResource CardBrush}">
+            <!-- 表格内容区：最亮的一档（CardBrush），底部圆角跟随卡片 -->
+            <Border Grid.Row="2"
+                    Margin="6,0,6,6"
+                    Background="{DynamicResource CardBrush}"
+                    CornerRadius="0,0,6,6">
                 <Grid>
-                    <DataGrid x:Name="CompactCashierGrid" Margin="0" RowHeight="30" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto"
+                    <DataGrid x:Name="CompactCashierGrid" Margin="0" RowHeight="34" ColumnHeaderHeight="34" HorizontalScrollBarVisibility="Auto"
                               PreviewMouseRightButtonUp="JobGrid_PreviewMouseRightButtonUp"
                               ContextMenu="{StaticResource JobContextMenu}">
                         <DataGrid.Columns>
@@ -2610,10 +2640,11 @@
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="44" HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
+                            <!-- 金额右对齐：一列数字竖着扫才对得齐；表头同为右对齐 -->
+                            <DataGridTemplateColumn Header="金额" Width="78" MinWidth="44" HeaderStyle="{StaticResource AmountColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellTextCenter}" />
+                                        <TextBlock Text="{Binding AmountText}" Style="{StaticResource AmountCellText}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -2879,6 +2910,8 @@
                         </Grid>
                     </Border>
                 </Grid>
+            </Grid>
+        </Border>
             </Grid>
         </Border>
     </Grid>

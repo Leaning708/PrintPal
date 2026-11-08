@@ -187,6 +187,7 @@ public partial class MainWindow : Window
             }
 
             UpdateMaximizeGlyph();
+            UpdateWindowFrame();
         };
         LocationChanged += (_, _) => SaveModePosition();
 
@@ -2784,6 +2785,7 @@ public partial class MainWindow : Window
             Topmost = await GetBoolSettingAsync(TopmostKey(mode), mode == UiMode.Minimal);
             UpdateTopmostButtons();
             UpdateMaximizeGlyph();
+            UpdateWindowFrame();
             if (persist)
             {
                 await SaveSettingAsync("uiMode", mode.ToString());
@@ -2806,6 +2808,17 @@ public partial class MainWindow : Window
         chrome.CaptionHeight = captionHeight;
         chrome.ResizeBorderThickness = new Thickness(resizeBorder);
         chrome.UseAeroCaptionButtons = false;
+    }
+
+    // 窗口外框：Win10 没有 DWM 阴影/圆角，用 1px 描边给出清晰窗口边界；
+    // Win11 由 DWM 负责圆角+阴影，再描边会在圆角处被裁掉，所以不画。
+    // 最大化贴边、以及极简模式（自绘深色圆角卡片）也不需要外框。
+    private void UpdateWindowFrame()
+    {
+        var drawFrame = _mode != UiMode.Minimal
+            && WindowState != WindowState.Maximized
+            && !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+        WindowFrame.BorderThickness = drawFrame ? new Thickness(1) : new Thickness(0);
     }
 
     /// <summary>窗口移动/缩放后防抖保存边界（500ms 静止后落库），任意时刻退出都能恢复最新位置。</summary>

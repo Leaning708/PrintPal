@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-11-09 — 紧凑模式界面改版（窗口边界 / 卡片分层 / 收银台视觉重心）
+
+- **窗口边界**：新增 `WindowFrame`（`MainWindow.xaml`）。Win10 上给无边框窗口画 1px 描边，
+  Win11 由 DWM 负责圆角+阴影所以不重复画（最大化、极简模式也不画），
+  解决「紧凑模式放在白底 APP 上看不出窗口边界」的问题。厚度由 `UpdateWindowFrame()` 按
+  OS / 模式 / 最大化状态切换。
+- **卡片化**：紧凑模式窗口底色改为页面背景色，内容是一张 6px 内缩的白卡（上下圆角 6），
+  标题栏 44→46px；标题栏 / 结账栏 / 表格用 1px 画框与发丝线分层。
+- **表头色带**：新增主题 token `HeaderBarBrush`（`CardBrush` + 中性灰混合，10 套主题自动适配，
+  不跟主题色相走，避免整屏同色发“脏”），`GridColumnHeaderStyle` 改用它；行悬停统一为
+  `HoverFillBrush`。
+- **收银台视觉重心**：金额 22→24px、与按钮间距 14→18px；`结账` 84×34→96×36 主按钮，
+  `挂起` 降级为 `SubtleButton`；任务行高 30→34；金额列连同表头改右对齐；
+  「模式/置顶」与窗口按钮之间加竖分隔线。
+- 同步 `docs/ui.md` 第 10 节与截图 `docs/images/ui-simple.png`。
+
+---
+
 ## 2026-11-08 — 文档校正：开发启动时 UI 日志位置
 
 - `printpal-dev-env` skill 的环境表原文写「服务模式 UI 日志仍在 `%LOCALAPPDATA%\PrintPal\logs\app.log`」，

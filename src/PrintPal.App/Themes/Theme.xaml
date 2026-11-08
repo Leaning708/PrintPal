@@ -32,6 +32,9 @@
     <SolidColorBrush x:Key="SidebarIndicatorBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="InsetBackgroundBrush" Color="#F8FAFC" />
     <SolidColorBrush x:Key="InsetBorderBrush" Color="#EDF1F7" />
+    <!-- 表格表头色带：中性灰（实际值由 ThemeManager.Make() 按 CardBrush + 中性灰混合算出，
+         这里只是兜底默认），避免表头也套主题色相导致整屏发绿/发蓝。 -->
+    <SolidColorBrush x:Key="HeaderBarBrush" Color="#F6F8FA" />
     <SolidColorBrush x:Key="SubtleButtonBackgroundBrush" Color="#F6F8FC" />
     <SolidColorBrush x:Key="GhostHoverBrush" Color="#EEF4FF" />
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#B4C2D6" />
@@ -526,7 +529,7 @@
 
     <!-- ============================================================ data grid -->
     <Style x:Key="GridColumnHeaderStyle" TargetType="DataGridColumnHeader">
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource HeaderBarBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
         <Setter Property="FontSize" Value="11.5" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -649,7 +652,7 @@
                     <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                     <Style.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="{DynamicResource InsetBackgroundBrush}" />
+                            <Setter Property="Background" Value="{DynamicResource HoverFillBrush}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
