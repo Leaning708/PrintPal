@@ -1,0 +1,88 @@
+<Window x:Class="PrintPal.App.PriceEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="价格编辑"
+        Height="620"
+        Width="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        Icon="pack://application:,,,/Assets/PrintPal.ico">
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="2,0,0,16">
+            <TextBlock Text="价格编辑" Style="{StaticResource PageTitle}" />
+            <TextBlock Text="按纸张与颜色匹配的单条计价规则" Style="{StaticResource PageSubtitle}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Margin="0,0,4,0">
+            <Border Style="{StaticResource CardBorder}" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="匹配条件（不可修改）" Style="{StaticResource SectionTitle}" Margin="0,0,0,14" />
+
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="纸张" Style="{StaticResource LabelText}" />
+                            <TextBlock x:Name="PaperText" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="颜色模式" Style="{StaticResource LabelText}" />
+                            <TextBlock x:Name="ColorText" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="纸张与颜色是这条规则的匹配条件，如需调整请删除后重建规则。"
+                               Style="{StaticResource SubtleText}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <TextBlock Text="价格" Style="{StaticResource SectionTitle}" Margin="0,0,0,14" />
+
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="单面价 / 张（元）" Style="{StaticResource LabelText}" />
+                            <TextBox x:Name="SimplexBox" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="双面价 / 张（元）" Style="{StaticResource LabelText}" />
+                            <TextBox x:Name="DuplexBox" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="优先级（数字越大越先匹配）" Style="{StaticResource LabelText}" />
+                    <TextBox x:Name="PriorityBox" Margin="0,0,0,14" />
+
+                    <CheckBox x:Name="EnabledCheck" Content="启用这条规则" IsChecked="True" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="取消" Click="Cancel_Click" />
+                <Button Content="保存" Style="{StaticResource PrimaryButton}" Margin="0" Click="Ok_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

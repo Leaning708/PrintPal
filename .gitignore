@@ -1,0 +1,39 @@
+# Build output
+bin/
+obj/
+dist/
+artifacts/
+TestResults/
+*.zip
+*.wixpdb
+*.wixobj
+
+# MSI output lands in dist/ (ignored above). Do NOT use a bare "*.msi" rule:
+# it also matches the packaging/PrintPal.Msi project directory and would hide
+# the WiX sources from git.
+/*.msi
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs / local runtime
+*.log
+*.tmp
+*.bak
+.vsconfig
+
+# Reference material (read-only, not part of the product)
+参考资料/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# ZCode (AI tool) local state
+.zcode/
+.dsh-zcode-bridge/
