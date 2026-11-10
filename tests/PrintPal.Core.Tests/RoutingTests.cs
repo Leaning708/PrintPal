@@ -76,6 +76,8 @@ public sealed class RoutingTests
         };
 
         Assert.True(rule.Matches(Job(color: ColorMode.Color, duplex: DuplexMode.TwoSidedLongEdge)));
+        // 长边/短边不再区分：规则里勾“双面”也匹配短边任务
+        Assert.True(rule.Matches(Job(color: ColorMode.Color, duplex: DuplexMode.TwoSidedShortEdge)));
         Assert.False(rule.Matches(Job(color: ColorMode.Monochrome, duplex: DuplexMode.TwoSidedLongEdge)));
         Assert.False(rule.Matches(Job(paper: PaperSize.A3, color: ColorMode.Color, duplex: DuplexMode.TwoSidedLongEdge)));
         Assert.False(rule.Matches(Job(color: ColorMode.Color, duplex: DuplexMode.Simplex)));

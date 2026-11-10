@@ -63,6 +63,9 @@ public sealed class PrintJobPipeline
             estimated = true;
         }
 
+        // 长边/短边不再作为参数：双面统一归一为长边
+        duplex = duplex.Canonical();
+
         if (!context.Attributes.ContainsKey("copies") ||
             (!context.Attributes.ContainsKey("media") && context.GetCollection("media-col") is null) ||
             !context.Attributes.ContainsKey("sides") ||

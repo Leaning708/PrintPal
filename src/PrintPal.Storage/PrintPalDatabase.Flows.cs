@@ -663,20 +663,43 @@ public sealed partial class PrintPalDatabase
         Add(command, "$from", ToIso(fromUtc));
         Add(command, "$to", ToIso(toUtc));
 
-        var list = new List<FlowDimensionStat>();
+        // 单双面不再区分长边/短边：历史数据里可能同时存在两种双面值，
+        // 这里把 key 归一到统一值，再把同名的行合并成一条。
+        var merged = new Dictionary<string, FlowDimensionStat>(StringComparer.Ordinal);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            list.Add(new FlowDimensionStat(
-                dimension,
-                GetNullableString(reader, "KeyValue") ?? "—",
-                GetInt32(reader, "JobCount"),
-                GetInt32(reader, "PageCount"),
-                GetInt32(reader, "SheetCount"),
-                GetInt64(reader, "AmountCents")));
+            var key = GetNullableString(reader, "KeyValue") ?? "—";
+            if (dimension == "duplex" &&
+                Enum.TryParse<DuplexMode>(key, ignoreCase: true, out var duplex))
+            {
+                key = duplex.Canonical().ToString();
+            }
+
+            var jobCount = GetInt32(reader, "JobCount");
+            var pageCount = GetInt32(reader, "PageCount");
+            var sheetCount = GetInt32(reader, "SheetCount");
+            var amountCents = GetInt64(reader, "AmountCents");
+            if (merged.TryGetValue(key, out var existing))
+            {
+                merged[key] = new FlowDimensionStat(
+                    dimension,
+                    key,
+                    existing.JobCount + jobCount,
+                    existing.PageCount + pageCount,
+                    existing.SheetCount + sheetCount,
+                    existing.AmountCents + amountCents);
+            }
+            else
+            {
+                merged[key] = new FlowDimensionStat(dimension, key, jobCount, pageCount, sheetCount, amountCents);
+            }
         }
 
-        return list;
+        return merged.Values
+            .OrderByDescending(stat => stat.AmountCents)
+            .ThenByDescending(stat => stat.JobCount)
+            .ToList();
     }
 
     /// <summary>时段分布：按本地小时聚合任务数与金额。</summary>

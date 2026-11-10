@@ -1394,7 +1394,7 @@ public sealed partial class PrintPalDatabase
                 ? new PaperSize(paperName, paperWidth, paperHeight)
                 : PaperSize.Unknown,
             ColorMode = ParseEnum(GetString(reader, "ColorMode"), ColorMode.Unknown),
-            DuplexMode = ParseEnum(GetString(reader, "DuplexMode"), DuplexMode.Unknown),
+            DuplexMode = ParseEnum(GetString(reader, "DuplexMode"), DuplexMode.Unknown).Canonical(),
             Copies = GetInt32(reader, "Copies"),
             PageCount = GetInt32(reader, "PageCount"),
             SimplexPriceCents = GetInt64(reader, "SimplexPriceCents"),

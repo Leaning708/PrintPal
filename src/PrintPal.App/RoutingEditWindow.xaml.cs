@@ -32,8 +32,8 @@ public partial class RoutingEditWindow : Window
         MonoCheck.IsChecked = rule.MatchColorModes.Contains(ColorMode.Monochrome);
         ColorCheck.IsChecked = rule.MatchColorModes.Contains(ColorMode.Color);
         SimplexCheck.IsChecked = rule.MatchDuplexModes.Contains(DuplexMode.Simplex);
-        LongCheck.IsChecked = rule.MatchDuplexModes.Contains(DuplexMode.TwoSidedLongEdge);
-        ShortCheck.IsChecked = rule.MatchDuplexModes.Contains(DuplexMode.TwoSidedShortEdge);
+        // 长边/短边合并为“双面”
+        DuplexCheck.IsChecked = rule.MatchDuplexModes.Any(mode => mode.IsDuplex());
         MinPagesBox.Text = rule.MinPages?.ToString() ?? "";
         MaxPagesBox.Text = rule.MaxPages?.ToString() ?? "";
         SourceAppBox.Text = rule.SourceAppPattern ?? "";
@@ -80,8 +80,8 @@ public partial class RoutingEditWindow : Window
 
             var duplexModes = new List<DuplexMode>();
             if (SimplexCheck.IsChecked == true) duplexModes.Add(DuplexMode.Simplex);
-            if (LongCheck.IsChecked == true) duplexModes.Add(DuplexMode.TwoSidedLongEdge);
-            if (ShortCheck.IsChecked == true) duplexModes.Add(DuplexMode.TwoSidedShortEdge);
+            // 长边/短边已合并：勾“双面”存成统一的双面值
+            if (DuplexCheck.IsChecked == true) duplexModes.Add(DuplexMode.TwoSidedLongEdge);
 
             _rule.Name = NameBox.Text.Trim();
             _rule.Priority = priority;

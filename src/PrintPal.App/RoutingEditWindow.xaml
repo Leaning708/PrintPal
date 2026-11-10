@@ -80,8 +80,7 @@
                                 <TextBlock Text="单双面" Style="{StaticResource LabelText}" />
                                 <StackPanel Orientation="Horizontal">
                                     <CheckBox x:Name="SimplexCheck" Content="单面" />
-                                    <CheckBox x:Name="LongCheck" Content="双面·长边" />
-                                    <CheckBox x:Name="ShortCheck" Content="双面·短边" />
+                                    <CheckBox x:Name="DuplexCheck" Content="双面" />
                                 </StackPanel>
                             </StackPanel>
                         </Grid>

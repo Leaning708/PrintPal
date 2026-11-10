@@ -61,7 +61,8 @@ public sealed class RoutingRule
             return false;
         }
 
-        if (MatchDuplexModes.Count > 0 && !MatchDuplexModes.Contains(job.DuplexMode))
+        // 单双面不再区分长边/短边：规则里勾了“双面”就匹配任意双面任务
+        if (MatchDuplexModes.Count > 0 && !MatchesDuplex(job.DuplexMode))
         {
             return false;
         }
@@ -88,6 +89,22 @@ public sealed class RoutingRule
         }
 
         return true;
+    }
+
+    /// <summary>单双面匹配：忽略长边/短边——规则里任一“双面”选项都等同“任意双面”。</summary>
+    private bool MatchesDuplex(DuplexMode mode)
+    {
+        if (mode == DuplexMode.Simplex)
+        {
+            return MatchDuplexModes.Contains(DuplexMode.Simplex);
+        }
+
+        if (mode.IsDuplex())
+        {
+            return MatchDuplexModes.Any(candidate => candidate.IsDuplex());
+        }
+
+        return false;
     }
 
     private static bool MatchesPattern(string? value, string? pattern)

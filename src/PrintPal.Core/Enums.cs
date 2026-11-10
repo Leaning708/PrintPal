@@ -109,10 +109,17 @@ public static class DuplexModeExtensions
     public static bool IsDuplex(this DuplexMode mode) =>
         mode is DuplexMode.TwoSidedLongEdge or DuplexMode.TwoSidedShortEdge;
 
+    /// <summary>
+    /// 单双面不再区分长边/短边：把任意双面值归一到 TwoSidedLongEdge。
+    /// 长/短边差异对计价、路由、UI 都没有意义，转发统一按长边发送。
+    /// </summary>
+    public static DuplexMode Canonical(this DuplexMode mode) =>
+        mode.IsDuplex() ? DuplexMode.TwoSidedLongEdge : mode;
+
     public static string ToIppKeyword(this DuplexMode mode) => mode switch
     {
-        DuplexMode.TwoSidedLongEdge => "two-sided-long-edge",
-        DuplexMode.TwoSidedShortEdge => "two-sided-short-edge",
+        // 长边/短边已不再作为参数：所有双面都按长边发送。
+        _ when mode.IsDuplex() => "two-sided-long-edge",
         _ => "one-sided",
     };
 
@@ -126,8 +133,8 @@ public static class DuplexModeExtensions
         return value.Trim().ToLowerInvariant() switch
         {
             "one-sided" or "simplex" => DuplexMode.Simplex,
-            "two-sided-long-edge" => DuplexMode.TwoSidedLongEdge,
-            "two-sided-short-edge" => DuplexMode.TwoSidedShortEdge,
+            // 短边/长边都归一为双面（忽略翻转方向）
+            "two-sided-long-edge" or "two-sided-short-edge" => DuplexMode.TwoSidedLongEdge,
             _ => DuplexMode.Unknown,
         };
     }
@@ -142,8 +149,9 @@ public static class DuplexModeExtensions
         return value.Trim().ToUpperInvariant() switch
         {
             "PSK:ONESIDED" or "ONESIDED" => DuplexMode.Simplex,
+            // 短边/长边都归一为双面（忽略翻转方向）
             "PSK:TWOSIDEDLONGEDGE" or "TWOSIDEDLONGEDGE" => DuplexMode.TwoSidedLongEdge,
-            "PSK:TWOSIDEDSHORTEDGE" or "TWOSIDEDSHORTEDGE" => DuplexMode.TwoSidedShortEdge,
+            "PSK:TWOSIDEDSHORTEDGE" or "TWOSIDEDSHORTEDGE" => DuplexMode.TwoSidedLongEdge,
             _ => DuplexMode.Unknown,
         };
     }
@@ -151,8 +159,8 @@ public static class DuplexModeExtensions
     public static string DisplayName(this DuplexMode mode) => mode switch
     {
         DuplexMode.Simplex => "单面",
-        DuplexMode.TwoSidedLongEdge => "双面·长边",
-        DuplexMode.TwoSidedShortEdge => "双面·短边",
+        // 用户可见层面不再区分长边/短边
+        _ when mode.IsDuplex() => "双面",
         _ => "未知",
     };
 }

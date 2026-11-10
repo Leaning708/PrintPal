@@ -74,11 +74,30 @@ public sealed class PaperAndEnumTests
     [Theory]
     [InlineData("one-sided", DuplexMode.Simplex)]
     [InlineData("two-sided-long-edge", DuplexMode.TwoSidedLongEdge)]
-    [InlineData("TWO-SIDED-SHORT-EDGE", DuplexMode.TwoSidedShortEdge)]
+    // 长边/短边不再区分：短边也归一为双面（长边）
+    [InlineData("TWO-SIDED-SHORT-EDGE", DuplexMode.TwoSidedLongEdge)]
     [InlineData("weird", DuplexMode.Unknown)]
     public void DuplexMode_maps_ipp_keywords(string value, DuplexMode expected)
     {
         Assert.Equal(expected, DuplexModeExtensions.FromIppKeyword(value));
+    }
+
+    [Theory]
+    [InlineData("PSK:ONESIDED", DuplexMode.Simplex)]
+    [InlineData("PSK:TWOSIDEDLONGEDGE", DuplexMode.TwoSidedLongEdge)]
+    [InlineData("PSK:TWOSIDEDSHORTEDGE", DuplexMode.TwoSidedLongEdge)]
+    public void DuplexMode_maps_print_ticket_names(string value, DuplexMode expected)
+    {
+        Assert.Equal(expected, DuplexModeExtensions.FromPrintTicketName(value));
+    }
+
+    [Theory]
+    [InlineData(DuplexMode.Simplex, "单面")]
+    [InlineData(DuplexMode.TwoSidedLongEdge, "双面")]
+    [InlineData(DuplexMode.TwoSidedShortEdge, "双面")]
+    public void DuplexMode_display_name_ignores_edge(DuplexMode mode, string expected)
+    {
+        Assert.Equal(expected, mode.DisplayName());
     }
 
     [Theory]
@@ -99,6 +118,8 @@ public sealed class PaperAndEnumTests
         Assert.Equal("color", ColorMode.Color.ToIppKeyword());
         Assert.Equal("monochrome", ColorMode.Monochrome.ToIppKeyword());
         Assert.Equal("two-sided-long-edge", DuplexMode.TwoSidedLongEdge.ToIppKeyword());
+        // 短边不再作为参数：统一按长边发送
+        Assert.Equal("two-sided-long-edge", DuplexMode.TwoSidedShortEdge.ToIppKeyword());
         Assert.Equal("one-sided", DuplexMode.Simplex.ToIppKeyword());
     }
 }

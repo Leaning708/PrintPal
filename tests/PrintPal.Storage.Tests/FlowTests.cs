@@ -64,7 +64,7 @@ public sealed class FlowTests
             {
                 Assert.Equal(billFlow.Flow.FlowNo, entry.Flow.ParentFlowNo);
                 Assert.Equal(bill.Id, entry.Flow.BillId);
-                Assert.Equal("A4 · 彩色 · 双面·长边", entry.Flow.SpecSnapshot);
+                Assert.Equal("A4 · 彩色 · 双面", entry.Flow.SpecSnapshot);
             });
         }
         finally
