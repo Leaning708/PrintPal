@@ -19,10 +19,6 @@ public static class ThemeManager
 {
     public const string DefaultKey = "blue";
 
-    // 结构性色带用的中性灰：浅色主题偏冷灰、深色主题偏浅灰，保证色带不带主题色相。
-    private static readonly Color NeutralBand = Color.FromRgb(0x64, 0x74, 0x8B);
-    private static readonly Color NeutralBandDark = Color.FromRgb(0x94, 0xA3, 0xB8);
-
     private static readonly Dictionary<string, string> LightBase = new(StringComparer.OrdinalIgnoreCase)
     {
         ["AccentBrush"] = "#2563EB",
@@ -290,11 +286,6 @@ public static class ThemeManager
         colors["ScrollThumbBrush"] = Blend(colors["CardBrush"], colors["MutedBrush"], 0.45);
         colors["ScrollThumbHoverBrush"] = Blend(colors["CardBrush"], colors["MutedBrush"], 0.65);
         colors["ScrollThumbPressedBrush"] = Blend(colors["CardBrush"], colors["MutedBrush"], 0.85);
-
-        // 表格表头用一档中性灰（不跟主题色相走，避免色带都套同一色相显得发“脏”）；
-        // 标题栏 / 结账栏 / 表格内容都保持 CardBrush，靠 1px 外框 + 6px 灰边 + 发丝线分层。
-        var band = isDark ? NeutralBandDark : NeutralBand;
-        colors["HeaderBarBrush"] = Blend(colors["CardBrush"], band, 0.08);
 
         return new ThemeDefinition(key, name, isDark, colors);
     }
