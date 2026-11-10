@@ -48,7 +48,10 @@
                                         Background="{DynamicResource SidebarIndicatorBrush}"
                                         CornerRadius="0,2,2,0"
                                         Visibility="Collapsed" />
-                                <ContentPresenter Margin="14,0,12,0" VerticalAlignment="Center" />
+                                <ContentPresenter x:Name="NavContent"
+                                                  Margin="14,0,12,0"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -61,10 +64,20 @@
                                 <Setter TargetName="NavIndicator" Property="Visibility" Value="Visible" />
                                 <Setter Property="Foreground" Value="White" />
                             </Trigger>
+                            <!-- 侧边栏收起为图标模式：去掉内容左右留白，图标在窄栏里居中 -->
+                            <DataTrigger Binding="{Binding SidebarCollapsed, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
+                                <Setter TargetName="NavContent" Property="Margin" Value="0" />
+                            </DataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SidebarCollapsed, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
+                    <Setter Property="Margin" Value="6,2" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="HeaderActionButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
@@ -116,30 +129,62 @@
             <Setter Property="Margin" Value="0" />
         </Style>
 
+        <!-- 侧栏右边缘拖动手柄：视觉上完全不可见（无线、无高亮），只保留拖动手感 -->
+        <Style x:Key="SidebarSplitterStyle" TargetType="GridSplitter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="SizeWE" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="Transparent" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="NavIcon" TargetType="TextBlock" BasedOn="{StaticResource IconGlyph}">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" />
             <Setter Property="Width" Value="26" />
-            <Setter Property="HorizontalAlignment" Value="Left" />
+            <!-- 图标在 26px 的图标列内水平居中：收起为窄栏时正好落在栏中线 -->
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
         </Style>
 
         <Style x:Key="NavLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" />
+            <Style.Triggers>
+                <!-- 侧边栏收起为图标模式时隐藏菜单名称 -->
+                <DataTrigger Binding="{Binding SidebarCollapsed, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!-- reusable cells -->
         <DataTemplate x:Key="StatusPillTemplate">
+            <!-- 方形状态标签：状态色底色 + 圆点 + 文字（不做圆角） -->
             <Border x:Name="Pill"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
                     Background="{DynamicResource PillNeutralBackgroundBrush}"
-                    CornerRadius="20"
-                    Padding="9,2">
+                    CornerRadius="0"
+                    Padding="7,2">
                 <StackPanel Orientation="Horizontal">
-                    <Ellipse x:Name="PillDot" Width="6" Height="6" Fill="{DynamicResource PillNeutralTextBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
-                    <TextBlock x:Name="PillText" Text="{Binding StatusText}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource PillNeutralTextBrush}" />
+                    <Ellipse x:Name="PillDot"
+                             Width="6"
+                             Height="6"
+                             Margin="0,0,5,0"
+                             VerticalAlignment="Center"
+                             Fill="{DynamicResource PillNeutralTextBrush}" />
+                    <TextBlock x:Name="PillText"
+                               Text="{Binding StatusText}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource PillNeutralTextBrush}" />
                 </StackPanel>
             </Border>
             <DataTemplate.Triggers>
@@ -369,10 +414,10 @@
                     <TextBlock Text="{Binding IndexText}" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{DynamicResource SoftMutedBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource AccentDarkBrush}" />
+                                        <Setter Property="Foreground" Value="White" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -426,7 +471,7 @@
                     <TextBlock Grid.Column="0" Text="{Binding IndexText}" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{DynamicResource SoftMutedBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsCurrent}" Value="True">
                                         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
@@ -522,7 +567,9 @@
         <!-- ======================================================== FULL -->
         <Grid x:Name="FullLayout" Background="{DynamicResource SidebarBrush}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="238" />
+                <!-- 侧栏宽度可拖动：最窄 64（仅图标），最宽 360 -->
+                <ColumnDefinition x:Name="SidebarColumn" Width="238" MinWidth="64" MaxWidth="360" />
+                <ColumnDefinition Width="6" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -530,25 +577,32 @@
             <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="72" />
+                            <RowDefinition x:Name="SidebarHeaderRow" Height="72" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Top" Margin="20,20,0,0">
-                        <Border Width="36" Height="36" Background="{DynamicResource CardBrush}" CornerRadius="10" Padding="3">
-                            <Image Source="pack://application:,,,/Assets/PrintPal.png" Stretch="Uniform" />
-                        </Border>
-                        <TextBlock Text="PrintPal"
-                                   Margin="11,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource SidebarTextBrush}"
-                                   FontSize="16"
-                                   FontWeight="Bold" />
-                    </StackPanel>
+                        <Grid x:Name="SidebarLogoPanel" Grid.Row="0" VerticalAlignment="Top" Margin="20,20,20,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="SidebarLogoIcon" Width="36" Height="36" Background="{DynamicResource CardBrush}" CornerRadius="10" Padding="3">
+                                <Image Source="pack://application:,,,/Assets/PrintPal.png" Stretch="Uniform" />
+                            </Border>
+                            <TextBlock x:Name="SidebarLogoText"
+                                       Grid.Column="1"
+                                       Text="PrintPal"
+                                       Margin="11,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SidebarTextBrush}"
+                                       FontSize="16"
+                                       FontWeight="Bold" />
+                        </Grid>
 
                     <StackPanel Grid.Row="1" Margin="0,10,0,0">
-                        <TextBlock Text="工作台"
+                        <TextBlock x:Name="SidebarSectionTitle"
+                                   Text="工作台"
                                    Margin="26,0,0,8"
                                    Foreground="{DynamicResource SidebarSectionBrush}"
                                    FontSize="10"
@@ -568,7 +622,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="&#xE7BF;" Style="{StaticResource NavIcon}" />
                                     <TextBlock Grid.Column="1" Text="收银台" Style="{StaticResource NavLabel}" />
-                                    <Border Grid.Column="2" Background="{DynamicResource SidebarCountBrush}" CornerRadius="9" Padding="7,1" VerticalAlignment="Center">
+                                    <Border x:Name="CashierNavCountBadge" Grid.Column="2" Background="{DynamicResource SidebarCountBrush}" CornerRadius="9" Padding="7,1" VerticalAlignment="Center">
                                         <TextBlock x:Name="CashierNavCountText" Text="0" Foreground="{DynamicResource SidebarCountTextBrush}" FontSize="10" />
                                     </Border>
                                 </Grid>
@@ -646,7 +700,7 @@
                         </ListBox>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="2" Margin="16,0,16,16">
+                    <StackPanel x:Name="SidebarStatusPanel" Grid.Row="2" Margin="16,0,16,16">
                         <Border Background="{DynamicResource SidebarCardBrush}"
                                 BorderBrush="{DynamicResource LineBrush}"
                                 BorderThickness="1"
@@ -674,9 +728,24 @@
                 </Grid>
             </Border>
 
+            <!-- 侧栏右边可拖动：拖窄到 170 以下自动收成图标模式，拖宽恢复文字。
+                 GridSplitter 必须是它要调整的那个 Grid 的直接子元素，否则不生效。 -->
+            <GridSplitter x:Name="SidebarSplitter"
+                          Grid.Column="1"
+                          Style="{StaticResource SidebarSplitterStyle}"
+                          Width="6"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          AutomationProperties.Name="拖动调整侧边栏宽度"
+                          WindowChrome.IsHitTestVisibleInChrome="True"
+                          DragDelta="SidebarSplitter_DragDelta"
+                          DragCompleted="SidebarSplitter_DragCompleted" />
+
             <!-- ================= main -->
             <Border x:Name="MainSurface"
-                    Grid.Column="1"
+                    Grid.Column="2"
                     Margin="3"
                     Background="{DynamicResource PageBackgroundBrush}"
                     CornerRadius="3"
@@ -1612,18 +1681,10 @@
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Header="类型" Binding="{Binding KindText}" Width="64" MinWidth="48"
-                                                            HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
+                                        <DataGridTextColumn Header="文档" Binding="{Binding DocumentText}" Width="*" MinWidth="100">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
-                                                    <Setter Property="HorizontalAlignment" Value="Center" />
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="172" MinWidth="130">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
-                                                    <Setter Property="ToolTip" Value="{Binding TimeText}" />
+                                                    <Setter Property="ToolTip" Value="{Binding ToolTip}" />
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
@@ -1639,15 +1700,16 @@
                                                         <TextBlock Text="{Binding BillMissingText}"
                                                                    FontSize="10"
                                                                    Foreground="{StaticResource DangerBrush}"
-                                                                   Margin="0,1,0,0" />
+                                                                   Margin="0,1,0,0"
+                                                                   Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="文档" Binding="{Binding DocumentText}" Width="*" MinWidth="100">
+                                        <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="172" MinWidth="130">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
-                                                    <Setter Property="ToolTip" Value="{Binding ToolTip}" />
+                                                    <Setter Property="ToolTip" Value="{Binding TimeText}" />
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
@@ -1659,14 +1721,10 @@
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
-                                        <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="86" MinWidth="64"
-                                                            HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
-                                                    <Setter Property="HorizontalAlignment" Value="Center" />
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
+                                        <!-- 与收银台同款：色底 + 圆点 + 状态色文字 -->
+                                        <DataGridTemplateColumn Header="状态" Width="86" MinWidth="64"
+                                                                HeaderStyle="{StaticResource CenterColumnHeaderStyle}"
+                                                                CellTemplate="{StaticResource StatusPillCenteredTemplate}" />
                                         <DataGridTextColumn Header="目标打印机" Binding="{Binding TargetText}" Width="112" MinWidth="80">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -1740,8 +1798,9 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
+                            <!-- 每日明细/维度统计 与 统计图 等权重：窗口放大/缩小时三张卡片同步伸缩 -->
+                            <RowDefinition Height="*" MinHeight="200" />
+                            <RowDefinition Height="*" MinHeight="180" />
                         </Grid.RowDefinitions>
                             <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="18,12">
                                 <Grid>
@@ -1857,9 +1916,15 @@
                                 </Border>
                             </UniformGrid>
 
-                            <!-- 统计图：趋势折线 / 时段分布 二选一（同一块位置切换），放在页面最下方 -->
-                            <Border Grid.Row="3" Style="{StaticResource CardBorder}" Padding="16,10" Margin="0,12,0,0" Height="300">
-                                <StackPanel>
+                            <!-- 统计图：趋势折线 / 时段分布 二选一（同一块位置切换）；
+                                 与上面两张卡片等权重，窗口放大/缩小时一起伸缩（不再固定 300 高） -->
+                            <Border Grid.Row="3" Style="{StaticResource CardBorder}" Padding="16,10" Margin="0,12,0,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
                                     <Grid>
                                         <TextBlock Text="统计图" Style="{StaticResource CardTitle}" />
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -1896,63 +1961,64 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid x:Name="StatsChartHost"
-                                          Height="230"
-                                          Margin="0,10,0,0"
-                                          Background="Transparent"
-                                          SizeChanged="StatsChartHost_SizeChanged"
-                                          MouseMove="StatsChartHost_MouseMove"
-                                          MouseLeave="StatsChartHost_MouseLeave">
-                                        <Canvas x:Name="StatsChartCanvas" ClipToBounds="True" />
-                                        <TextBlock x:Name="StatsChartEmptyText"
-                                                   Text="当前范围内没有数据"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="Collapsed">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedText}" />
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </Grid>
+                                    <Grid Grid.Row="1" Margin="0,10,0,0" MinHeight="120">
+                                        <Grid x:Name="StatsChartHost"
+                                              Background="Transparent"
+                                              SizeChanged="StatsChartHost_SizeChanged"
+                                              MouseMove="StatsChartHost_MouseMove"
+                                              MouseLeave="StatsChartHost_MouseLeave">
+                                            <Canvas x:Name="StatsChartCanvas" ClipToBounds="True" />
+                                            <TextBlock x:Name="StatsChartEmptyText"
+                                                       Text="当前范围内没有数据"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="Collapsed">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedText}" />
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
 
-                                    <ItemsControl x:Name="HourBars"
-                                                  Margin="0,10,0,0"
-                                                  HorizontalAlignment="Left"
-                                                  Visibility="Collapsed">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Width="34" Margin="0,0,2,0" ToolTip="{Binding ToolTip}">
-                                                    <Grid Height="86">
-                                                        <Border Height="{Binding BarHeight}"
-                                                                Width="18"
-                                                                CornerRadius="3"
-                                                                Background="{DynamicResource AccentSoftBrush}"
-                                                                VerticalAlignment="Bottom"
-                                                                HorizontalAlignment="Center" />
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding CountText}"
-                                                               FontSize="9.5"
-                                                               HorizontalAlignment="Center"
-                                                               Foreground="{DynamicResource SoftMutedBrush}" />
-                                                    <TextBlock Text="{Binding HourText}"
-                                                               FontSize="9.5"
-                                                               HorizontalAlignment="Center"
-                                                               Foreground="{DynamicResource MutedBrush}" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
+                                        <ItemsControl x:Name="HourBars"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Top"
+                                                      Visibility="Collapsed">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Width="34" Margin="0,0,2,0" ToolTip="{Binding ToolTip}">
+                                                        <Grid Height="86">
+                                                            <Border Height="{Binding BarHeight}"
+                                                                    Width="18"
+                                                                    CornerRadius="3"
+                                                                    Background="{DynamicResource AccentSoftBrush}"
+                                                                    VerticalAlignment="Bottom"
+                                                                    HorizontalAlignment="Center" />
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding CountText}"
+                                                                   FontSize="9.5"
+                                                                   HorizontalAlignment="Center"
+                                                                   Foreground="{DynamicResource SoftMutedBrush}" />
+                                                        <TextBlock Text="{Binding HourText}"
+                                                                   FontSize="9.5"
+                                                                   HorizontalAlignment="Center"
+                                                                   Foreground="{DynamicResource MutedBrush}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Grid>
                             </Border>
 
                             <Grid Grid.Row="2" Margin="0,12,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="1.35*" />
+                                    <!-- 两张卡片等宽权重 -->
+                                    <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
@@ -1970,10 +2036,10 @@
                                                   Grid.Row="1"
                                                   IsReadOnly="True"
                                                   AutoGenerateColumns="False"
-                                                  HorizontalScrollBarVisibility="Disabled">
+                                                  HorizontalScrollBarVisibility="Auto">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="日期" Binding="{Binding DateText}" Width="110" MinWidth="90" />
-                                                <DataGridTextColumn Header="星期" Binding="{Binding WeekText}" Width="60" MinWidth="48"
+                                                <DataGridTextColumn Header="日期" Binding="{Binding DateText}" Width="1.3*" MinWidth="112" />
+                                                <DataGridTextColumn Header="星期" Binding="{Binding WeekText}" Width="*" MinWidth="48"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -1981,7 +2047,7 @@
                                                         </Style>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTemplateColumn Header="营业额" Width="100" MinWidth="80"
+                                                <DataGridTemplateColumn Header="营业额" Width="*" MinWidth="82"
                                                                         HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
@@ -1989,7 +2055,7 @@
                                                         </DataTemplate>
                                                     </DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>
-                                                <DataGridTextColumn Header="账单" Binding="{Binding BillCount}" Width="64" MinWidth="48"
+                                                <DataGridTextColumn Header="账单" Binding="{Binding BillCount}" Width="*" MinWidth="48"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -1997,7 +2063,7 @@
                                                         </Style>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTextColumn Header="任务" Binding="{Binding JobCount}" Width="64" MinWidth="48"
+                                                <DataGridTextColumn Header="任务" Binding="{Binding JobCount}" Width="*" MinWidth="48"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -2005,7 +2071,7 @@
                                                         </Style>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="70" MinWidth="52"
+                                                <DataGridTextColumn Header="页数" Binding="{Binding PageCount}" Width="*" MinWidth="48"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -2013,7 +2079,7 @@
                                                         </Style>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTextColumn Header="张数" Binding="{Binding SheetCount}" Width="70" MinWidth="52"
+                                                <DataGridTextColumn Header="张数" Binding="{Binding SheetCount}" Width="*" MinWidth="48"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -2055,11 +2121,11 @@
                                                   Grid.Row="1"
                                                   IsReadOnly="True"
                                                   AutoGenerateColumns="False"
-                                                  HorizontalScrollBarVisibility="Disabled">
+                                                  HorizontalScrollBarVisibility="Auto">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="维度" Binding="{Binding DimensionText}" Width="96" MinWidth="72" />
+                                                <DataGridTextColumn Header="维度" Binding="{Binding DimensionText}" Width="*" MinWidth="68" />
                                                 <DataGridTextColumn Header="取值" Binding="{Binding KeyText}" Width="*" MinWidth="70" />
-                                                <DataGridTextColumn Header="任务" Binding="{Binding JobCount}" Width="58" MinWidth="44"
+                                                <DataGridTextColumn Header="任务" Binding="{Binding JobCount}" Width="*" MinWidth="44"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -2067,7 +2133,7 @@
                                                         </Style>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTextColumn Header="张数" Binding="{Binding SheetCount}" Width="60" MinWidth="46"
+                                                <DataGridTextColumn Header="张数" Binding="{Binding SheetCount}" Width="*" MinWidth="44"
                                                                     HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTextColumn.ElementStyle>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -2075,7 +2141,7 @@
                                                         </Style>
                                                     </DataGridTextColumn.ElementStyle>
                                                 </DataGridTextColumn>
-                                                <DataGridTemplateColumn Header="金额" Width="92" MinWidth="72"
+                                                <DataGridTemplateColumn Header="金额" Width="*" MinWidth="72"
                                                                         HeaderStyle="{StaticResource CenterColumnHeaderStyle}">
                                                     <DataGridTemplateColumn.CellTemplate>
                                                         <DataTemplate>
@@ -2349,6 +2415,15 @@
                                                    Style="{StaticResource SubtleText}"
                                                    Margin="0,10,0,6" />
                                         <WrapPanel x:Name="DarkThemeButtonsPanel" />
+
+                                        <TextBlock Text="界面字体"
+                                                   Style="{StaticResource SubtleText}"
+                                                   Margin="0,14,0,6" />
+                                        <ComboBox x:Name="FontFamilyBox"
+                                                  Height="34"
+                                                  MaxDropDownHeight="320"
+                                                  ToolTip="选择本机已安装的字体，立即生效并记住选择"
+                                                  SelectionChanged="FontFamilyBox_SelectionChanged" />
                                     </StackPanel>
                                 </Border>
 

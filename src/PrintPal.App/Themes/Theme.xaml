@@ -61,6 +61,10 @@
     <SolidColorBrush x:Key="MinimalNoticeBorderBrush" Color="#FBBF24" />
     <SolidColorBrush x:Key="MinimalNoticeForegroundBrush" Color="#1F2937" />
 
+    <!-- 界面字体：设置页「外观」可切换，所有控件通过 DynamicResource 引用；
+         默认 Microsoft YaHei UI，运行期由 ThemeManager.ApplyUiFontFamily() 替换。 -->
+    <FontFamily x:Key="UiFontFamily">Microsoft YaHei UI</FontFamily>
+
     <LinearGradientBrush x:Key="SidebarBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#EAF0FB" Offset="0" />
         <GradientStop Color="#D8E3F5" Offset="1" />
@@ -74,7 +78,7 @@
     <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
     <Style TargetType="{x:Type Window}">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Background" Value="{DynamicResource PageBackgroundBrush}" />
         <Setter Property="UseLayoutRounding" Value="True" />
@@ -99,6 +103,8 @@
         <Setter Property="FontSize" Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+        <!-- 设置页卡片标题与下方内容的间距 -->
+        <Setter Property="Margin" Value="0,0,0,12" />
     </Style>
 
     <Style x:Key="CardTitle" TargetType="TextBlock">
@@ -161,7 +167,7 @@
 
     <!-- ============================================================ buttons -->
     <Style x:Key="ButtonBase" TargetType="Button">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Padding" Value="14,0" />
@@ -291,7 +297,7 @@
 
     <!-- ============================================================ text boxes -->
     <Style TargetType="TextBox">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
         <Setter Property="Background" Value="{DynamicResource CardBrush}" />
@@ -362,7 +368,7 @@
     </ControlTemplate>
 
     <Style x:Key="ComboBoxItemStyle" TargetType="ComboBoxItem">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
         <Setter Property="Background" Value="Transparent" />
@@ -399,7 +405,7 @@
     </Style>
 
     <Style TargetType="ComboBox">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
         <Setter Property="Background" Value="{DynamicResource CardBrush}" />
@@ -473,7 +479,7 @@
 
     <!-- ============================================================ check box -->
     <Style TargetType="CheckBox">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource InkSecondaryBrush}" />
         <Setter Property="Margin" Value="0,5,20,5" />
@@ -587,7 +593,7 @@
     </Style>
 
     <Style TargetType="DataGrid">
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="Foreground" Value="{DynamicResource InkSecondaryBrush}" />
         <Setter Property="Background" Value="Transparent" />
@@ -824,7 +830,7 @@
     <Style TargetType="ToolTip">
         <Setter Property="Background" Value="{DynamicResource TooltipBackgroundBrush}" />
         <Setter Property="Foreground" Value="White" />
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="11.5" />
         <Setter Property="Padding" Value="8,5" />
         <Setter Property="Template">
@@ -865,16 +871,16 @@
 
     <!-- 挂单溢出折叠按钮「+N」：与挂单 chip 同款外观，点击弹出全部挂单浮层 -->
     <Style x:Key="ParkedOverflowChipStyle" TargetType="Button" BasedOn="{StaticResource ParkedBillChipStyle}">
-        <Setter Property="MinWidth" Value="44" />
-        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="MinWidth" Value="30" />
+        <Setter Property="Padding" Value="6,0" />
         <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
 
     <!-- 极简模式的小号「+N」：与小型挂单 chip 同款深色外观 -->
     <Style x:Key="MinimalParkedOverflowChipStyle" TargetType="Button" BasedOn="{StaticResource ParkedOverflowChipStyle}">
         <Setter Property="Height" Value="22" />
-        <Setter Property="MinWidth" Value="36" />
-        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="MinWidth" Value="24" />
+        <Setter Property="Padding" Value="5,0" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="Background" Value="{DynamicResource MinimalChipBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource MinimalChipTextBrush}" />
@@ -994,7 +1000,7 @@
         <Setter Property="Background" Value="{DynamicResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+        <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{DynamicResource InkSecondaryBrush}" />
         <Setter Property="Template">

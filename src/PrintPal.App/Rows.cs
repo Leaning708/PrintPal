@@ -301,8 +301,11 @@ public sealed class JobRow
 /// <summary>一行「标签 + 值」，用于打印详情面板的分组信息。</summary>
 public sealed class DetailLine
 {
-    private static readonly System.Windows.Media.FontFamily UiFont = new("Microsoft YaHei UI");
     private static readonly System.Windows.Media.FontFamily MonoFont = new("Consolas");
+
+    private static System.Windows.Media.FontFamily UiFont =>
+        System.Windows.Application.Current?.TryFindResource("UiFontFamily") as System.Windows.Media.FontFamily
+        ?? new System.Windows.Media.FontFamily(Themes.ThemeManager.DefaultUiFontFamily);
 
     public DetailLine(string label, string value, string? toolTip = null, bool mono = false, bool ellipsis = false, string? copyValue = null)
     {
@@ -413,7 +416,7 @@ public sealed class RoutingRow
 
             parts.Add(Rule.MatchDuplexModes.Count == 0
                 ? "单双面任意"
-                : string.Join("/", Rule.MatchDuplexModes.Select(mode => mode.DisplayName())));
+                : string.Join("/", Rule.MatchDuplexModes.Select(mode => mode.DisplayName()).Distinct()));
 
             if (Rule.MinPages.HasValue || Rule.MaxPages.HasValue)
             {

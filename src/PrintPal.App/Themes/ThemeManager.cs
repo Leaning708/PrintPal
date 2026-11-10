@@ -267,6 +267,47 @@ public static class ThemeManager
         SetGradient("SidebarBrush", theme.Colors["SidebarTop"], theme.Colors["SidebarBottom"]);
     }
 
+    /// <summary>默认界面字体（与 Theme.xaml 里的 UiFontFamily 初始值保持一致）。</summary>
+    public const string DefaultUiFontFamily = "Microsoft YaHei UI";
+
+    /// <summary>
+    /// 切换界面字体：替换定义 UiFontFamily 的资源字典条目，并给现有窗口设本地字体，
+    /// 保证所有 DynamicResource 引用与继承链立即生效。传 null/空串表示恢复默认字体。
+    /// </summary>
+    public static void ApplyUiFontFamily(string? familyName)
+    {
+        var name = string.IsNullOrWhiteSpace(familyName) ? DefaultUiFontFamily : familyName;
+        if (Application.Current is not { } app)
+        {
+            return;
+        }
+
+        var family = new System.Windows.Media.FontFamily(name);
+
+        // 关键：UiFontFamily 定义在合并字典（Theme.xaml）里，必须改字典本身才会通知
+        // DynamicResource 重新解析；只往 Application.Resources 根上覆盖是收不到通知的。
+        var replaced = false;
+        foreach (var dictionary in app.Resources.MergedDictionaries)
+        {
+            if (dictionary.Contains("UiFontFamily"))
+            {
+                dictionary["UiFontFamily"] = family;
+                replaced = true;
+            }
+        }
+
+        if (!replaced)
+        {
+            app.Resources["UiFontFamily"] = family;
+        }
+
+        // 兜底：给已打开的窗口设本地字体，导航等没有显式字体样式、靠继承的文字立刻跟随。
+        foreach (Window window in app.Windows)
+        {
+            window.FontFamily = family;
+        }
+    }
+
     private static ThemeDefinition Make(string key, string name, bool isDark, Dictionary<string, string> overrides)
     {
         var colors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);

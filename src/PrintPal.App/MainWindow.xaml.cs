@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net.Sockets;
 using System.Printing;
@@ -94,6 +95,43 @@ public partial class MainWindow : Window
     private readonly List<Button> _themeButtons = new();
     private string _themeKey = ThemeManager.DefaultKey;
 
+    // 界面字体（null = 默认 Microsoft YaHei UI）
+    private string? _uiFontFamily;
+    private bool _suppressFontChange;
+
+    // 侧边栏宽度可拖动：64 = 仅图标模式，>= 170 才显示文字
+    private const double SidebarCollapsedWidth = 64;
+    private const double SidebarExpandedWidth = 238;
+    private const double SidebarIconThreshold = 170;
+    private const double SidebarMinExpandedWidth = 180;
+    private const double SidebarMaxWidth = 360;
+
+    /// <summary>窗口窄到这个宽度以下时，强制收起为图标模式（此时不可拖动展开）。</summary>
+    private const double SidebarCollapseWidth = 1000;
+
+    /// <summary>用户拖出来的侧边栏宽度（持久化在 sidebarWidth）。</summary>
+    private double _sidebarWidth = SidebarExpandedWidth;
+
+    public static readonly DependencyProperty SidebarCollapsedProperty = DependencyProperty.Register(
+        nameof(SidebarCollapsed),
+        typeof(bool),
+        typeof(MainWindow),
+        new PropertyMetadata(false));
+
+    /// <summary>侧边栏是否收起为图标模式（XAML 里的 NavLabel 等通过它切换可见性）。</summary>
+    public bool SidebarCollapsed
+    {
+        get => (bool)GetValue(SidebarCollapsedProperty);
+        set => SetValue(SidebarCollapsedProperty, value);
+    }
+
+    /// <summary>纯图标字体不进入「界面字体」候选，选了也没法显示中文。</summary>
+    private static readonly HashSet<string> IconOnlyFonts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Segoe MDL2 Assets", "Segoe Fluent Icons", "Segoe Icon", "Marlett", "Symbol",
+        "Wingdings", "Wingdings 2", "Wingdings 3", "Webdings",
+    };
+
     // 极简模式打印通知（滚动 marquee）
     private DateTimeOffset _lastSeenJobCreatedAt = DateTimeOffset.MinValue;
     private DispatcherTimer? _minimalNoticeTimer;
@@ -176,7 +214,11 @@ public partial class MainWindow : Window
 
         // 窗口移动/缩放后防抖保存边界：任意时刻退出（含强杀）都能恢复最新位置
         LocationChanged += (_, _) => ScheduleBoundsSave();
-        SizeChanged += (_, _) => ScheduleBoundsSave();
+        SizeChanged += (_, _) =>
+        {
+            ScheduleBoundsSave();
+            UpdateSidebarLayout();
+        };
 
         CreateTrayIcon();
         StateChanged += (_, _) =>
@@ -224,6 +266,26 @@ public partial class MainWindow : Window
             Console.WriteLine($"THEME setting loaded: [{_themeKey}]");
             ThemeManager.Apply(ThemeManager.Find(_themeKey));
             BuildThemeButtons();
+
+            // 界面字体：默认微软雅黑 UI，用户可在设置页切换
+            _uiFontFamily = await _agent.Database.GetSettingAsync("uiFontFamily");
+            ThemeManager.ApplyUiFontFamily(_uiFontFamily);
+            BuildFontFamilyList();
+
+            // 侧边栏宽度（可拖动；老版本用 sidebarCollapsed 布尔，做一次兼容）
+            var savedSidebarWidth = await _agent.Database.GetSettingAsync("sidebarWidth");
+            if (double.TryParse(savedSidebarWidth, NumberStyles.Float, CultureInfo.InvariantCulture, out var sidebarWidth) &&
+                sidebarWidth >= SidebarCollapsedWidth)
+            {
+                _sidebarWidth = Math.Clamp(sidebarWidth, SidebarCollapsedWidth, SidebarMaxWidth);
+            }
+            else
+            {
+                var oldCollapsed = await _agent.Database.GetSettingAsync("sidebarCollapsed");
+                _sidebarWidth = string.Equals(oldCollapsed, "true", StringComparison.OrdinalIgnoreCase)
+                    ? SidebarCollapsedWidth
+                    : SidebarExpandedWidth;
+            }
 
             await ReloadAsync();
             UpdateQueueStatus();
@@ -2726,7 +2788,7 @@ public partial class MainWindow : Window
                 Background = mode == UiMode.Full
                     ? (System.Windows.Media.Brush)FindResource("SidebarBrush")
                     : (System.Windows.Media.Brush)FindResource("PageBackgroundBrush");
-                MinWidth = mode == UiMode.Full ? 1200 : 700;
+                MinWidth = mode == UiMode.Full ? 960 : 700;
                 MinHeight = mode == UiMode.Full ? 620 : 420;
                 ConfigureWindowChrome(mode == UiMode.Full ? 78 : 58, 6);
 
@@ -2787,6 +2849,7 @@ public partial class MainWindow : Window
             UpdateTopmostButtons();
             UpdateMaximizeGlyph();
             UpdateWindowFrame();
+            UpdateSidebarLayout();
             if (persist)
             {
                 await SaveSettingAsync("uiMode", mode.ToString());
@@ -2834,6 +2897,86 @@ public partial class MainWindow : Window
 
         MinimalLayout.CornerRadius = new CornerRadius(0);
         MinimalTopBar.CornerRadius = new CornerRadius(0);
+    }
+
+    /// <summary>
+    /// 侧边栏布局：窗口太窄时强制 64px 图标模式；否则用用户拖出来的宽度。
+    /// 宽度小于 170 视为图标模式（隐藏文字、图标居中），拖动结束吸附到 64 或 ≥180。
+    /// </summary>
+    private void UpdateSidebarLayout()
+    {
+        if (FullLayout is null || SidebarColumn is null)
+        {
+            return;
+        }
+
+        var forcedByWidth = _mode == UiMode.Full && ActualWidth > 0 && ActualWidth < SidebarCollapseWidth;
+        ApplySidebarWidth(forcedByWidth ? SidebarCollapsedWidth : _sidebarWidth);
+
+        if (SidebarSplitter is not null)
+        {
+            SidebarSplitter.IsEnabled = _mode == UiMode.Full && !forcedByWidth;
+            SidebarSplitter.Cursor = SidebarSplitter.IsEnabled ? System.Windows.Input.Cursors.SizeWE : null;
+            SidebarSplitter.ToolTip = forcedByWidth ? "窗口宽度不足，无法展开侧边栏" : "拖动调整侧边栏宽度";
+        }
+    }
+
+    /// <summary>按宽度应用侧栏形态：&lt;170 进图标模式（隐藏文字、图标居中），否则显示文字。</summary>
+    private void ApplySidebarWidth(double width)
+    {
+        var clamped = Math.Clamp(width, SidebarCollapsedWidth, SidebarMaxWidth);
+        var iconMode = clamped < SidebarIconThreshold;
+
+        SidebarCollapsed = iconMode;
+        if (Math.Abs(SidebarColumn.Width.Value - clamped) >= 0.5)
+        {
+            SidebarColumn.Width = new GridLength(clamped);
+        }
+
+        var textVisibility = iconMode ? Visibility.Collapsed : Visibility.Visible;
+        SidebarLogoText.Visibility = textVisibility;
+        SidebarSectionTitle.Visibility = textVisibility;
+        CashierNavCountBadge.Visibility = textVisibility;
+        SidebarStatusPanel.Visibility = textVisibility;
+        SidebarLogoPanel.Margin = iconMode ? new Thickness(14, 16, 14, 0) : new Thickness(20, 20, 20, 0);
+
+        foreach (var item in NavList.Items.OfType<ListBoxItem>())
+        {
+            // 图标模式只有图标，补 ToolTip，避免看不出是哪个菜单
+            item.ToolTip = iconMode
+                ? System.Windows.Automation.AutomationProperties.GetName(item)
+                : null;
+
+            // 菜单名称那一列收成 0 宽，这样图标才能在窄栏里水平居中
+            if (item.Content is Grid navGrid && navGrid.ColumnDefinitions.Count > 1)
+            {
+                navGrid.ColumnDefinitions[1].Width =
+                    iconMode ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+            }
+        }
+    }
+
+    private void SidebarSplitter_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        // 拖动过程中实时预览：越过 170 自动切文字/图标形态
+        ApplySidebarWidth(SidebarColumn.Width.Value);
+    }
+
+    private async void SidebarSplitter_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        var width = SidebarColumn.Width.Value;
+        if (width < SidebarIconThreshold)
+        {
+            width = SidebarCollapsedWidth;
+        }
+        else if (width < SidebarMinExpandedWidth)
+        {
+            width = SidebarMinExpandedWidth;
+        }
+
+        _sidebarWidth = width;
+        ApplySidebarWidth(width);
+        await SaveSettingAsync("sidebarWidth", width.ToString("0", CultureInfo.InvariantCulture));
     }
 
     /// <summary>窗口移动/缩放后防抖保存边界（500ms 静止后落库），任意时刻退出都能恢复最新位置。</summary>
@@ -3123,6 +3266,56 @@ public partial class MainWindow : Window
         }
 
         await SaveSettingAsync("uiTheme", key);
+    }
+
+    // ------------------------------------------------------------------ ui font
+
+    private const string DefaultFontItem = "默认（Microsoft YaHei UI）";
+
+    private void BuildFontFamilyList()
+    {
+        _suppressFontChange = true;
+        try
+        {
+            var names = System.Windows.Media.Fonts.SystemFontFamilies
+                .Select(family => family.Source)
+                .Where(name => !string.IsNullOrWhiteSpace(name) && !IconOnlyFonts.Contains(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var items = new List<string> { DefaultFontItem };
+            items.AddRange(names);
+
+            // 设置里记的字体若不在本机（换过机器），补一项，避免选择丢失
+            if (!string.IsNullOrWhiteSpace(_uiFontFamily) &&
+                !items.Any(item => string.Equals(item, _uiFontFamily, StringComparison.OrdinalIgnoreCase)))
+            {
+                items.Add(_uiFontFamily);
+            }
+
+            FontFamilyBox.ItemsSource = items;
+            FontFamilyBox.SelectedItem = string.IsNullOrWhiteSpace(_uiFontFamily)
+                ? DefaultFontItem
+                : items.FirstOrDefault(item =>
+                      string.Equals(item, _uiFontFamily, StringComparison.OrdinalIgnoreCase)) ?? DefaultFontItem;
+        }
+        finally
+        {
+            _suppressFontChange = false;
+        }
+    }
+
+    private async void FontFamilyBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressFontChange || FontFamilyBox.SelectedItem is not string selected)
+        {
+            return;
+        }
+
+        _uiFontFamily = selected == DefaultFontItem ? null : selected;
+        ThemeManager.ApplyUiFontFamily(_uiFontFamily);
+        await SaveSettingAsync("uiFontFamily", _uiFontFamily ?? string.Empty);
     }
 
     // ------------------------------------------------------------------ minimal print notice
