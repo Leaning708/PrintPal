@@ -261,6 +261,43 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- 打印机状态：pill（靠右、垂直居中；时间在 tooltip） -->
+        <DataTemplate x:Key="PrinterStatusTemplate">
+            <Border x:Name="Pill"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource PillNeutralBackgroundBrush}"
+                    CornerRadius="0"
+                    Padding="7,2"
+                    ToolTip="{Binding StatusTooltip}">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="PillDot"
+                             Width="6"
+                             Height="6"
+                             Margin="0,0,5,0"
+                             VerticalAlignment="Center"
+                             Fill="{DynamicResource PillNeutralTextBrush}" />
+                    <TextBlock x:Name="PillText"
+                               Text="{Binding StatusText}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource PillNeutralTextBrush}" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Online">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Failed">
+                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource DangerBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
         <!-- 状态药丸水平居中（文件列表用） -->
         <DataTemplate x:Key="StatusPillCenteredTemplate">
             <ContentPresenter Content="{Binding}"
@@ -355,18 +392,13 @@
         </DataTemplate>
 
         <DataTemplate x:Key="PrinterNameCell">
-            <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{Binding Name}"
-                           FontSize="12.5"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource InkBrush}"
-                           TextTrimming="CharacterEllipsis"
-                           ToolTip="{Binding Name}" />
-                <TextBlock Text="{Binding ProtocolText}"
-                           Margin="0,2,0,0"
-                           FontSize="10.5"
-                           Foreground="{DynamicResource SoftMutedBrush}" />
-            </StackPanel>
+            <TextBlock Text="{Binding Name}"
+                       VerticalAlignment="Center"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource InkBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Name}" />
         </DataTemplate>
 
         <DataTemplate x:Key="HistoryBillCell">
@@ -526,10 +558,19 @@
             <MenuItem Header="打开文档" Click="OpenDoc_Click" />
             <MenuItem Header="打开所在目录" Click="OpenDocFolder_Click" />
             <MenuItem Header="移到其他账单" Click="MoveJob_Click" />
-            <Separator />
+            <Separator Style="{StaticResource MenuSeparator}" />
             <MenuItem Header="删除记录" Foreground="{StaticResource DangerBrush}" Click="DeleteJob_Click" />
         </ContextMenu>
 
+        <!-- 打印机列表右键菜单：编辑 / 测试连接 / 启用停用 / 删除 -->
+        <ContextMenu x:Key="PrinterContextMenu"
+                     DataContext="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="编辑" Click="EditPrinter_Click" />
+            <MenuItem Header="测试连接" Click="TestPrinter_Click" />
+            <MenuItem Header="{Binding EnableToggleText}" Click="TogglePrinterEnabled_Click" />
+            <Separator Style="{StaticResource MenuSeparator}" />
+            <MenuItem Header="删除" Foreground="{StaticResource DangerBrush}" Click="DeletePrinter_Click" />
+        </ContextMenu>
         <Style x:Key="AmountCellText" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -569,7 +610,7 @@
             <Grid.ColumnDefinitions>
                 <!-- 侧栏宽度可拖动：最窄 64（仅图标），最宽 360 -->
                 <ColumnDefinition x:Name="SidebarColumn" Width="238" MinWidth="64" MaxWidth="360" />
-                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="3" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -667,16 +708,6 @@
                                     <TextBlock Grid.Column="1" Text="打印机" Style="{StaticResource NavLabel}" />
                                 </Grid>
                             </ListBoxItem>
-                            <ListBoxItem AutomationProperties.Name="路由规则">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="26" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="&#xE8AB;" Style="{StaticResource NavIcon}" />
-                                    <TextBlock Grid.Column="1" Text="路由规则" Style="{StaticResource NavLabel}" />
-                                </Grid>
-                            </ListBoxItem>
                             <ListBoxItem AutomationProperties.Name="价格表">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -733,7 +764,7 @@
             <GridSplitter x:Name="SidebarSplitter"
                           Grid.Column="1"
                           Style="{StaticResource SidebarSplitterStyle}"
-                          Width="6"
+                          Width="3"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Stretch"
                           ResizeDirection="Columns"
@@ -746,7 +777,7 @@
             <!-- ================= main -->
             <Border x:Name="MainSurface"
                     Grid.Column="2"
-                    Margin="3"
+                    Margin="1,3,3,3"
                     Background="{DynamicResource PageBackgroundBrush}"
                     CornerRadius="3"
                     ClipToBounds="True"
@@ -1666,7 +1697,7 @@
                                         <ContextMenu>
                                             <MenuItem Header="追溯账单" Click="FlowTrace_Click" />
                                             <MenuItem Header="复制流水号" Click="FlowCopyNo_Click" />
-                                            <Separator />
+                                            <Separator Style="{StaticResource MenuSeparator}" />
                                             <MenuItem Header="删除流水"
                                                       Foreground="{StaticResource DangerBrush}"
                                                       Click="FlowDelete_Click" />
@@ -2207,7 +2238,6 @@
                                     <Button Content="+ 新增打印机" Style="{StaticResource PrimaryButton}" Click="AddPrinter_Click" />
                                     <Button Content="编辑" Click="EditPrinter_Click" />
                                     <Button Content="测试连接" Click="TestPrinter_Click" />
-                                    <Button Content="设为默认" Click="SetDefault_Click" />
                                     <Button Content="删除" Style="{StaticResource DangerButton}" Margin="0" Click="DeletePrinter_Click" />
                                 </StackPanel>
                             </Grid>
@@ -2219,9 +2249,18 @@
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <DataGrid x:Name="PrintersGrid" Grid.Row="0" HorizontalScrollBarVisibility="Auto" MouseDoubleClick="PrintersGrid_MouseDoubleClick">
+                                <DataGrid x:Name="PrintersGrid" Grid.Row="0" HorizontalScrollBarVisibility="Auto"
+                                          ContextMenu="{StaticResource PrinterContextMenu}"
+                                          ContextMenuOpening="PrintersGrid_ContextMenuOpening"
+                                          PreviewMouseRightButtonDown="PrintersGrid_PreviewMouseRightButtonDown"
+                                          MouseDoubleClick="PrintersGrid_MouseDoubleClick">
                                     <DataGrid.Columns>
-                                        <DataGridTemplateColumn Header="名称" Width="*" MinWidth="170" CellTemplate="{StaticResource PrinterNameCell}" />
+                                        <DataGridTemplateColumn Header="名称" Width="*" MinWidth="150" CellTemplate="{StaticResource PrinterNameCell}" />
+                                        <DataGridTextColumn Header="协议" Binding="{Binding ProtocolText}" Width="90" MinWidth="70">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}" />
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
                                         <DataGridTextColumn Header="地址" Binding="{Binding Address}" Width="230" MinWidth="161">
                                             <DataGridTextColumn.ElementStyle>
                                                 <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
@@ -2229,70 +2268,13 @@
                                                 </Style>
                                             </DataGridTextColumn.ElementStyle>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Header="格式 / 纸张" Binding="{Binding CapabilitiesText}" Width="220" MinWidth="154">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
-                                                    <Setter Property="ToolTip" Value="{Binding CapabilitiesText}" />
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTemplateColumn Header="最近测试" Width="92" MinWidth="64" CellTemplate="{StaticResource StatusPillTemplate}" />
-                                        <DataGridTextColumn Header="启用" Binding="{Binding EnabledText}" Width="64" MinWidth="45" />
-                                        <DataGridTextColumn Header="默认" Binding="{Binding DefaultText}" Width="64" MinWidth="45" />
+                                        <DataGridTemplateColumn Header="状态" Width="150" MinWidth="120"
+                                                                HeaderStyle="{StaticResource CenterColumnHeaderStyle}"
+                                                                CellTemplate="{StaticResource PrinterStatusTemplate}" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <TextBlock Grid.Row="1"
-                                           Text="测试连接会读取 IPP 打印机能力（文档格式 / 纸张 / 颜色 / 双面）。删除只移除 PrintPal 中的配置，不影响 Windows 队列。"
-                                           Style="{StaticResource FooterHint}"
-                                           Margin="18,8,18,2" />
-                            </Grid>
-                        </Border>
-                    </Grid>
-
-                    <!-- ================= routing -->
-                    <Grid x:Name="RoutingPage" Visibility="Collapsed">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <Border Grid.Row="0" Style="{StaticResource CardBorder}" Padding="18,12" Margin="0,0,0,14">
-                            <Grid>
-                                <StackPanel>
-                                    <TextBlock Text="路由规则" Style="{StaticResource CardTitle}" />
-                                    <TextBlock Text="优先级越小越先匹配，第一条命中的规则生效" Style="{StaticResource SubtleText}" Margin="0,2,0,0" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <Button Content="+ 新增规则" Style="{StaticResource PrimaryButton}" Click="AddRouting_Click" />
-                                    <Button Content="编辑" Click="EditRouting_Click" />
-                                    <Button Content="删除" Style="{StaticResource DangerButton}" Margin="0" Click="DeleteRouting_Click" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="0,4,0,12">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <DataGrid x:Name="RoutingGrid" Grid.Row="0" HorizontalScrollBarVisibility="Auto" MouseDoubleClick="RoutingGrid_MouseDoubleClick">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="优先级" Binding="{Binding PriorityText}" Width="70" MinWidth="49" />
-                                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="180" MinWidth="126" />
-                                        <DataGridTextColumn Header="匹配条件" Binding="{Binding ConditionsText}" Width="*" MinWidth="260">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedCellText}">
-                                                    <Setter Property="ToolTip" Value="{Binding ConditionsText}" />
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="目标打印机" Binding="{Binding TargetText}" Width="170" MinWidth="119" />
-                                        <DataGridTextColumn Header="启用" Binding="{Binding EnabledText}" Width="70" MinWidth="49" />
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                                <TextBlock Grid.Row="1"
-                                           Text="条件按 AND 组合，同类多值按 OR；空条件表示任意。无匹配时使用默认打印机，仍无目标则标记为“未路由”。"
+                                           Text="「打印能力」在编辑打印机里勾选（决定任务能走哪台机器）；删除只移除 PrintPal 中的配置，不影响 Windows 队列。"
                                            Style="{StaticResource FooterHint}"
                                            Margin="18,8,18,2" />
                             </Grid>
@@ -2310,7 +2292,7 @@
                             <Grid>
                                 <StackPanel>
                                     <TextBlock Text="价格表" Style="{StaticResource CardTitle}" />
-                                    <TextBlock Text="按张计价，单位：元。双面奇数页的最后一张按单面价计算。"
+                                    <TextBlock Text="按张计价，单位：元。纸张 + 颜色精确匹配；双面奇数页的最后一张按单面价计算。"
                                                Style="{StaticResource SubtleText}"
                                                Margin="0,2,0,0" />
                                 </StackPanel>
@@ -2339,12 +2321,10 @@
                                         <DataGridTextColumn Header="颜色" Binding="{Binding ColorDisplay}" Width="*" MinWidth="100" IsReadOnly="True" />
                                         <DataGridTextColumn Header="单面价 / 张" Binding="{Binding SimplexYuan, StringFormat=0.00}" Width="*" MinWidth="120" />
                                         <DataGridTextColumn Header="双面价 / 张" Binding="{Binding DuplexYuan, StringFormat=0.00}" Width="*" MinWidth="120" />
-                                        <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled}" Width="110" MinWidth="77" HeaderStyle="{StaticResource CenterColumnHeaderStyle}" />
-                                        <DataGridTextColumn Header="优先级" Binding="{Binding PriorityText}" Width="110" MinWidth="77" IsReadOnly="True" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <TextBlock Grid.Row="1"
-                                           Text="双击金额单元格即可编辑；修改后点击“保存价格”。金额按分存储、界面按元显示，未启用的规则不参与计价。"
+                                           Text="双击金额单元格即可编辑；修改后点击“保存价格”。纸张 + 颜色唯一，缺价的任务会阻止结账，先去价格表补齐。"
                                            Style="{StaticResource FooterHint}"
                                            Margin="18,8,18,2" />
                             </Grid>
@@ -2388,10 +2368,19 @@
                                     <StackPanel>
                                         <TextBlock Text="转发" Style="{StaticResource SectionTitle}" />
                                         <CheckBox x:Name="AutoForwardCheck"
-                                                  Content="捕获并计价后自动转发到路由目标"
+                                                  Content="捕获并计价后自动转发到目标打印机"
                                                   Checked="AutoForward_Changed"
                                                   Unchecked="AutoForward_Changed" />
                                         <TextBlock Text="关闭后只捕获、计价和路由，不自动发送；之后可在收银台中人工处理。"
+                                                   Style="{StaticResource MutedText}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0" />
+                                        <CheckBox x:Name="BillAffinityCheck"
+                                                  Content="同一账单优先使用同一台打印机"
+                                                  Margin="0,12,0,0"
+                                                  Checked="BillAffinity_Changed"
+                                                  Unchecked="BillAffinity_Changed" />
+                                        <TextBlock Text="同一账单的文件尽量固定一台机器（取件集中）；不同账单会尽量分到不同机器（负载均衡）。能力不满足时会自动分散到声明支持该任务的打印机。"
                                                    Style="{StaticResource MutedText}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,4,0,0" />
@@ -2991,5 +2980,3 @@
         </Border>
     </Grid>
 </Window>
-
-

@@ -1,148 +1,36 @@
-using System.Text.RegularExpressions;
-
 namespace PrintPal.Core;
 
-public sealed class RoutingRule
+/// <summary>路由候选集：能力声明能处理该任务的打印机（按名称排序）。</summary>
+public sealed record RoutingCandidates(IReadOnlyList<Printer> Printers, string Reason)
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
+    public bool IsRouted => Printers.Count > 0;
 
-    public string Name { get; set; } = string.Empty;
-
-    public int Priority { get; set; }
-
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>Canonical paper names; empty or "*" means any.</summary>
-    public List<string> MatchPaperSizes { get; set; } = new();
-
-    /// <summary>Empty means any colour mode.</summary>
-    public List<ColorMode> MatchColorModes { get; set; } = new();
-
-    /// <summary>Empty means any duplex mode.</summary>
-    public List<DuplexMode> MatchDuplexModes { get; set; } = new();
-
-    /// <summary>Inclusive minimum per-copy page count; null means no lower bound.</summary>
-    public int? MinPages { get; set; }
-
-    /// <summary>Inclusive maximum per-copy page count; null means no upper bound.</summary>
-    public int? MaxPages { get; set; }
-
-    /// <summary>Optional case-insensitive regular expression over SourceApp.</summary>
-    public string? SourceAppPattern { get; set; }
-
-    /// <summary>Optional case-insensitive regular expression over DocumentName.</summary>
-    public string? DocumentNamePattern { get; set; }
-
-    public Guid? TargetPrinterId { get; set; }
-
-    public string? Notes { get; set; }
-
-    public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
-
-    public bool Matches(PrintJob job)
-    {
-        ArgumentNullException.ThrowIfNull(job);
-
-        if (!Enabled)
-        {
-            return false;
-        }
-
-        if (MatchPaperSizes.Count > 0 &&
-            !MatchPaperSizes.Any(size =>
-                size == "*" ||
-                string.Equals(size, job.PaperSize.Name, StringComparison.OrdinalIgnoreCase)))
-        {
-            return false;
-        }
-
-        if (MatchColorModes.Count > 0 && !MatchColorModes.Contains(job.ColorMode))
-        {
-            return false;
-        }
-
-        // 单双面不再区分长边/短边：规则里勾了“双面”就匹配任意双面任务
-        if (MatchDuplexModes.Count > 0 && !MatchesDuplex(job.DuplexMode))
-        {
-            return false;
-        }
-
-        // A page range cannot be evaluated when the page count is unknown.
-        if (MinPages.HasValue && (job.PageCount <= 0 || job.PageCount < MinPages.Value))
-        {
-            return false;
-        }
-
-        if (MaxPages.HasValue && (job.PageCount <= 0 || job.PageCount > MaxPages.Value))
-        {
-            return false;
-        }
-
-        if (!MatchesPattern(job.SourceApp, SourceAppPattern))
-        {
-            return false;
-        }
-
-        if (!MatchesPattern(job.DocumentName, DocumentNamePattern))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>单双面匹配：忽略长边/短边——规则里任一“双面”选项都等同“任意双面”。</summary>
-    private bool MatchesDuplex(DuplexMode mode)
-    {
-        if (mode == DuplexMode.Simplex)
-        {
-            return MatchDuplexModes.Contains(DuplexMode.Simplex);
-        }
-
-        if (mode.IsDuplex())
-        {
-            return MatchDuplexModes.Any(candidate => candidate.IsDuplex());
-        }
-
-        return false;
-    }
-
-    private static bool MatchesPattern(string? value, string? pattern)
-    {
-        if (string.IsNullOrWhiteSpace(pattern))
-        {
-            return true;
-        }
-
-        if (string.IsNullOrEmpty(value))
-        {
-            return false;
-        }
-
-        try
-        {
-            return Regex.IsMatch(
-                value,
-                pattern,
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-                TimeSpan.FromSeconds(1));
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-        catch (RegexMatchTimeoutException)
-        {
-            return false;
-        }
-    }
+    public static RoutingCandidates None(string reason) => new(Array.Empty<Printer>(), reason);
 }
 
-public sealed record RoutingResult(Printer? Printer, RoutingRule? Rule, string Reason)
+public enum RouteSource
 {
-    public bool IsRouted => Printer is not null;
+    None = 0,
+    /// <summary>同一账单沿用已用过的打印机。</summary>
+    Affinity = 1,
+    /// <summary>跨账单均衡（其它未结账单占用最少 / 最久未使用）。</summary>
+    Balance = 2,
+}
 
-    public static RoutingResult Unrouted(string reason) => new(null, null, reason);
+public sealed record RouteChoice(Printer Printer, string Reason, RouteSource Source);
+
+/// <summary>路由决策需要的用量快照（由存储层一次性查出）。</summary>
+public sealed record PrinterUsageSnapshot(
+    IReadOnlyDictionary<Guid, int> BillJobCounts,
+    IReadOnlyDictionary<Guid, DateTimeOffset> BillLastUsed,
+    IReadOnlyDictionary<Guid, int> OtherOpenBillCounts,
+    IReadOnlyDictionary<Guid, DateTimeOffset> LastUsed)
+{
+    public static PrinterUsageSnapshot Empty { get; } = new(
+        new Dictionary<Guid, int>(),
+        new Dictionary<Guid, DateTimeOffset>(),
+        new Dictionary<Guid, int>(),
+        new Dictionary<Guid, DateTimeOffset>());
 }
 
 public static class FormatCompatibility
@@ -172,49 +60,113 @@ public static class FormatCompatibility
 
 public static class RoutingEngine
 {
-    public static RoutingResult Route(
+    /// <summary>
+    /// 找出所有"能力声明能处理该任务"的打印机：
+    /// 启用 + 文档格式兼容 + 已声明路由能力（纸张/颜色/单双面全部覆盖）。
+    /// </summary>
+    public static RoutingCandidates FindCandidates(
         PrintJob job,
-        IReadOnlyList<RoutingRule> rules,
-        IReadOnlyList<Printer> printers,
-        Guid? defaultPrinterId = null)
+        IReadOnlyList<Printer> printers)
     {
         ArgumentNullException.ThrowIfNull(job);
-        ArgumentNullException.ThrowIfNull(rules);
         ArgumentNullException.ThrowIfNull(printers);
 
-        foreach (var rule in rules
-                     .Where(rule => rule.Enabled)
-                     .OrderBy(rule => rule.Priority)
-                     .ThenBy(rule => rule.Name, StringComparer.OrdinalIgnoreCase))
+        var matched = new List<Printer>();
+        var reasons = new List<string>();
+
+        foreach (var printer in printers
+                     .Where(printer => printer.Enabled)
+                     .OrderBy(printer => printer.Name, StringComparer.OrdinalIgnoreCase))
         {
-            if (!rule.Matches(job) || rule.TargetPrinterId is not Guid targetId)
+            if (!FormatCompatibility.IsCompatible(job.DocumentFormat, printer))
             {
+                reasons.Add($"“{printer.Name}”不支持 {job.DocumentFormat.DisplayName()}");
                 continue;
             }
 
-            var target = printers.FirstOrDefault(printer => printer.Id == targetId && printer.Enabled);
-            if (target is null || !FormatCompatibility.IsCompatible(job.DocumentFormat, target))
+            if (printer.Routing is null)
             {
+                reasons.Add($"“{printer.Name}”未声明路由能力");
                 continue;
             }
 
-            return new RoutingResult(target, rule, $"命中规则“{rule.Name}”");
+            if (!printer.Routing.Supports(job))
+            {
+                reasons.Add($"“{printer.Name}”不支持 {job.PaperSize.Name}/{job.ColorMode.DisplayName()}/{job.DuplexMode.DisplayName()}");
+                continue;
+            }
+
+            matched.Add(printer);
         }
 
-        var fallback = defaultPrinterId is Guid id
-            ? printers.FirstOrDefault(printer => printer.Id == id && printer.Enabled)
-            : printers.FirstOrDefault(printer => printer.Enabled && printer.IsDefault);
-
-        if (fallback is null)
+        if (matched.Count == 0)
         {
-            return RoutingResult.Unrouted("没有匹配的路由规则，也没有默认打印机");
+            var disabled = printers.Count(printer => !printer.Enabled);
+            var detail = reasons.Count > 0
+                ? string.Join("；", reasons.Distinct(StringComparer.Ordinal))
+                : disabled > 0
+                    ? "没有启用的打印机"
+                    : "没有打印机声明能处理该任务（纸张/颜色/单双面）";
+            return RoutingCandidates.None($"无法路由：{detail}");
         }
 
-        if (!FormatCompatibility.IsCompatible(job.DocumentFormat, fallback))
+        return new RoutingCandidates(
+            matched,
+            $"候选打印机：{string.Join("、", matched.Select(printer => printer.Name))}");
+    }
+}
+
+public static class AffinityPolicy
+{
+    /// <summary>
+    /// 在候选集内挑一台：
+    /// 1) 同单优先：本账单已用过的打印机（任务数多、最近使用优先）；
+    /// 2) 跨账单均衡：其它未结账单占用最少（0 优先），并列时最久未使用，再按名称。
+    /// </summary>
+    public static RouteChoice? Choose(
+        IReadOnlyList<Printer> candidates,
+        PrinterUsageSnapshot usage,
+        bool affinityEnabled)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(usage);
+
+        if (candidates.Count == 0)
         {
-            return RoutingResult.Unrouted($"默认打印机“{fallback.Name}”不支持 {job.DocumentFormat.DisplayName()}");
+            return null;
         }
 
-        return new RoutingResult(fallback, null, "使用默认打印机");
+        if (affinityEnabled)
+        {
+            var preferred = candidates
+                .Where(printer => usage.BillJobCounts.TryGetValue(printer.Id, out var count) && count > 0)
+                .OrderByDescending(printer => usage.BillJobCounts[printer.Id])
+                .ThenByDescending(printer =>
+                    usage.BillLastUsed.TryGetValue(printer.Id, out var lastUsed) ? lastUsed : DateTimeOffset.MinValue)
+                .ThenBy(printer => printer.Name, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+
+            if (preferred is not null)
+            {
+                return new RouteChoice(
+                    preferred,
+                    $"同一账单沿用“{preferred.Name}”",
+                    RouteSource.Affinity);
+            }
+        }
+
+        var balanced = candidates
+            .OrderBy(printer => usage.OtherOpenBillCounts.TryGetValue(printer.Id, out var count) ? count : 0)
+            .ThenBy(printer =>
+                usage.LastUsed.TryGetValue(printer.Id, out var lastUsed) ? lastUsed : DateTimeOffset.MinValue)
+            .ThenBy(printer => printer.Name, StringComparer.OrdinalIgnoreCase)
+            .First();
+
+        var otherBills = usage.OtherOpenBillCounts.TryGetValue(balanced.Id, out var used) ? used : 0;
+        var reason = otherBills == 0
+            ? $"“{balanced.Name}”当前没有其它未结账单，跨账单均衡分配"
+            : $"“{balanced.Name}”其它未结账单最少（{otherBills} 个）";
+
+        return new RouteChoice(balanced, reason, RouteSource.Balance);
     }
 }

@@ -136,17 +136,11 @@ public sealed class AgentPipelineTests
             Port = port,
             ResourcePath = "/ipp/print",
             Enabled = true,
-            IsDefault = true,
             Capabilities = PrinterCapabilities.CreateDefault("Target"),
         };
 
+        printer.Routing = new PrinterRoutingCapability();
         await agent.Database.SavePrinterAsync(printer);
-        await agent.Database.SaveRoutingRuleAsync(new RoutingRule
-        {
-            Name = "all",
-            Priority = 1,
-            TargetPrinterId = printer.Id,
-        });
 
         return printer;
     }
@@ -257,7 +251,7 @@ public sealed class AgentPipelineTests
             Assert.Equal(400, job.AmountCents);
             Assert.Null(job.TargetPrinterId);
             Assert.Null(job.ForwardedAtUtc);
-            Assert.Contains("没有匹配", job.StatusReason);
+            Assert.Contains("没有打印机声明", job.StatusReason);
         }
         finally
         {
@@ -301,15 +295,64 @@ public sealed class AgentPipelineTests
             await agent.StartAsync();
 
             var printers = await agent.Database.GetPrintersAsync();
-            var rules = await agent.Database.GetRoutingRulesAsync();
             var prices = await agent.Database.GetPriceRulesAsync();
 
             Assert.Equal(3, printers.Count);
-            Assert.Equal(3, rules.Count);
-            Assert.Equal(8, prices.Count);
+            Assert.Equal(6, prices.Count);
             Assert.Contains(printers, printer => printer.Name == "Fake-A4-Color");
-            Assert.Contains(printers, printer => printer.Name == "Fake-A4-Mono" && printer.IsDefault);
+            Assert.Contains(printers, printer => printer.Name == "Fake-A4-Mono");
             Assert.Contains(printers, printer => printer.Name == "Fake-A3");
+            // 每台演示打印机都声明了路由能力（不再有默认打印机 / 路由规则表）
+            Assert.All(printers, printer => Assert.NotNull(printer.Routing));
+            Assert.Contains(printers, printer => printer.Routing!.DuplexModes.Contains(DuplexMode.TwoSidedLongEdge));
+        }
+        finally
+        {
+            await agent.StopAsync();
+            Cleanup(dataDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task Same_bill_jobs_prefer_the_same_printer()
+    {
+        var dataDirectory = NewDataDirectory();
+        var firstHandler = new RecordingHandler();
+        await using var firstTarget = CreateTarget(firstHandler, out var firstPort);
+        await firstTarget.StartAsync();
+        var secondHandler = new RecordingHandler();
+        await using var secondTarget = CreateTarget(secondHandler, out var secondPort);
+        await secondTarget.StartAsync();
+
+        var agent = CreateAgent(dataDirectory);
+        try
+        {
+            await agent.StartAsync();
+            await AddTargetPrinterAsync(agent, firstPort);
+            await AddTargetPrinterAsync(agent, secondPort);
+
+            await SendJobAsync(agent, "first.pdf");
+            await Task.Delay(150);
+            await SendJobAsync(agent, "second.pdf");
+
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            var jobs = new List<PrintJob>();
+            while (DateTime.UtcNow < deadline && jobs.Count < 2)
+            {
+                jobs = (await agent.Database.GetJobsAsync(10)).ToList();
+                if (jobs.Count >= 2 &&
+                    jobs.All(job => job.Status is JobStatus.Succeeded or JobStatus.Priced or JobStatus.Held))
+                {
+                    break;
+                }
+
+                await Task.Delay(50);
+            }
+
+            Assert.Equal(2, jobs.Count);
+            Assert.All(jobs, job => Assert.NotNull(job.TargetPrinterId));
+            Assert.Equal(jobs[0].TargetPrinterId, jobs[1].TargetPrinterId);
+            Assert.Equal(jobs[0].BillId, jobs[1].BillId);
         }
         finally
         {

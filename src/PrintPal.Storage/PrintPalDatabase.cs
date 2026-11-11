@@ -111,7 +111,9 @@ public sealed partial class PrintPalDatabase
                 Enabled INTEGER NOT NULL,
                 IsDefault INTEGER NOT NULL,
                 CapabilitiesJson TEXT NULL,
+                RoutingCapabilityJson TEXT NULL,
                 LastTestedAtUtc TEXT NULL,
+                LastSuccessAtUtc TEXT NULL,
                 LastTestOk INTEGER NULL,
                 Notes TEXT NULL
             );
@@ -123,27 +125,9 @@ public sealed partial class PrintPalDatabase
                 ColorMode TEXT NULL,
                 SimplexPriceCents INTEGER NOT NULL,
                 DuplexPriceCents INTEGER NOT NULL,
-                Enabled INTEGER NOT NULL,
-                Priority INTEGER NOT NULL,
                 UpdatedAtUtc TEXT NOT NULL
             );
-
-            CREATE TABLE IF NOT EXISTS RoutingRules (
-                Id TEXT PRIMARY KEY,
-                Name TEXT NOT NULL,
-                Priority INTEGER NOT NULL,
-                Enabled INTEGER NOT NULL,
-                MatchPaperSizesJson TEXT NOT NULL,
-                MatchColorModesJson TEXT NOT NULL,
-                MatchDuplexModesJson TEXT NOT NULL,
-                MinPages INTEGER NULL,
-                MaxPages INTEGER NULL,
-                SourceAppPattern TEXT NULL,
-                DocumentNamePattern TEXT NULL,
-                TargetPrinterId TEXT NULL,
-                Notes TEXT NULL,
-                UpdatedAtUtc TEXT NOT NULL
-            );
+            CREATE UNIQUE INDEX IF NOT EXISTS UX_PriceRules_Paper_Color ON PriceRules(PaperSize, ColorMode);
 
             CREATE TABLE IF NOT EXISTS Settings (
                 Key TEXT PRIMARY KEY,
@@ -203,6 +187,7 @@ public sealed partial class PrintPalDatabase
         await ExecuteAsync(connection,
             "CREATE INDEX IF NOT EXISTS IX_PrintJobs_Bill ON PrintJobs(BillId);",
             cancellationToken).ConfigureAwait(false);
+
 
         // 补齐缺失流水（旧数据升级、旧版服务写入的账单/任务都在这里兜底），可重复执行。
         await EnsureFlowsCoreAsync(connection, cancellationToken).ConfigureAwait(false);
@@ -289,6 +274,100 @@ public sealed partial class PrintPalDatabase
     }
 
     // ------------------------------------------------------------------ jobs
+
+
+    /// <summary>
+    /// 路由决策用量快照：本单已用打印机（任务数/最近使用）、其它未结账单占用、各机最近成功转发时间。
+    /// </summary>
+    /// </summary>
+    public async Task<PrinterUsageSnapshot> GetPrinterUsageSnapshotAsync(
+        Guid? billId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var billCounts = new Dictionary<Guid, int>();
+        var billLastUsed = new Dictionary<Guid, DateTimeOffset>();
+        var otherOpenBills = new Dictionary<Guid, int>();
+        var lastUsed = new Dictionary<Guid, DateTimeOffset>();
+
+        if (billId is Guid currentBill)
+        {
+            await using var billCommand = connection.CreateCommand();
+            billCommand.CommandText = """
+                SELECT TargetPrinterId AS PrinterId,
+                       COUNT(*) AS JobCount,
+                       MAX(COALESCE(ForwardedAtUtc, CreatedAtUtc)) AS LastUsed
+                FROM PrintJobs
+                WHERE BillId = $billId
+                  AND IsDeleted = 0
+                  AND TargetPrinterId IS NOT NULL
+                GROUP BY TargetPrinterId;
+                """;
+            Add(billCommand, "$billId", currentBill.ToString("D"));
+            await using var reader = await billCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var printerId = Guid.Parse(GetString(reader, "PrinterId"));
+                billCounts[printerId] = GetInt32(reader, "JobCount");
+                billLastUsed[printerId] = ParseDate(GetString(reader, "LastUsed"));
+            }
+        }
+
+        await using (var openCommand = connection.CreateCommand())
+        {
+            openCommand.CommandText = billId is Guid excludeBill
+                ? """
+                  SELECT j.TargetPrinterId AS PrinterId, COUNT(DISTINCT j.BillId) AS BillCount
+                  FROM PrintJobs j
+                  JOIN Bills b ON b.Id = j.BillId
+                  WHERE b.Status IN ('Active', 'Parked')
+                    AND j.IsDeleted = 0
+                    AND j.TargetPrinterId IS NOT NULL
+                    AND j.BillId <> $billId
+                  GROUP BY j.TargetPrinterId;
+                  """
+                : """
+                  SELECT j.TargetPrinterId AS PrinterId, COUNT(DISTINCT j.BillId) AS BillCount
+                  FROM PrintJobs j
+                  JOIN Bills b ON b.Id = j.BillId
+                  WHERE b.Status IN ('Active', 'Parked')
+                    AND j.IsDeleted = 0
+                    AND j.TargetPrinterId IS NOT NULL
+                  GROUP BY j.TargetPrinterId;
+                  """;
+            if (billId is Guid exclude)
+            {
+                Add(openCommand, "$billId", exclude.ToString("D"));
+            }
+
+            await using var reader = await openCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                otherOpenBills[Guid.Parse(GetString(reader, "PrinterId"))] = GetInt32(reader, "BillCount");
+            }
+        }
+
+        await using (var lastUsedCommand = connection.CreateCommand())
+        {
+            lastUsedCommand.CommandText = """
+                SELECT TargetPrinterId AS PrinterId, MAX(ForwardedAtUtc) AS LastUsed
+                FROM PrintJobs
+                WHERE Status = 'Succeeded'
+                  AND IsDeleted = 0
+                  AND TargetPrinterId IS NOT NULL
+                  AND ForwardedAtUtc IS NOT NULL
+                GROUP BY TargetPrinterId;
+                """;
+            await using var reader = await lastUsedCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                lastUsed[Guid.Parse(GetString(reader, "PrinterId"))] = ParseDate(GetString(reader, "LastUsed"));
+            }
+        }
+
+        return new PrinterUsageSnapshot(billCounts, billLastUsed, otherOpenBills, lastUsed);
+    }
 
     public async Task SaveJobAsync(PrintJob job, CancellationToken cancellationToken = default)
     {
@@ -1158,10 +1237,11 @@ public sealed partial class PrintPalDatabase
         command.CommandText = """
             INSERT OR REPLACE INTO Printers (
                 Id, Name, Protocol, Host, Port, ResourcePath, FormatPreference,
-                Enabled, IsDefault, CapabilitiesJson, LastTestedAtUtc, LastTestOk, Notes
+                Enabled, IsDefault, CapabilitiesJson, RoutingCapabilityJson, LastTestedAtUtc, LastSuccessAtUtc,
+                LastTestOk, Notes
             ) VALUES (
                 $id, $name, $protocol, $host, $port, $resourcePath, $formatPreference,
-                $enabled, $isDefault, $capabilitiesJson, $lastTestedAt, $lastTestOk, $notes
+                $enabled, $isDefault, $capabilitiesJson, $routingCapabilityJson, $lastTestedAt, $lastSuccessAt, $lastTestOk, $notes
             );
             """;
         Add(command, "$id", printer.Id.ToString("D"));
@@ -1175,7 +1255,10 @@ public sealed partial class PrintPalDatabase
         Add(command, "$isDefault", printer.IsDefault ? 1 : 0);
         Add(command, "$capabilitiesJson",
             printer.Capabilities is null ? null : JsonSerializer.Serialize(printer.Capabilities, JsonOptions));
+        Add(command, "$routingCapabilityJson",
+            printer.Routing is null ? null : JsonSerializer.Serialize(printer.Routing, JsonOptions));
         Add(command, "$lastTestedAt", ToIso(printer.LastTestedAtUtc));
+        Add(command, "$lastSuccessAt", ToIso(printer.LastSuccessAtUtc));
         Add(command, "$lastTestOk", printer.LastTestOk.HasValue ? (printer.LastTestOk.Value ? 1 : 0) : null);
         Add(command, "$notes", printer.Notes);
 
@@ -1188,7 +1271,8 @@ public sealed partial class PrintPalDatabase
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT Id, Name, Protocol, Host, Port, ResourcePath, FormatPreference,
-                   Enabled, IsDefault, CapabilitiesJson, LastTestedAtUtc, LastTestOk, Notes
+                   Enabled, IsDefault, CapabilitiesJson, RoutingCapabilityJson, LastTestedAtUtc, LastSuccessAtUtc,
+                   LastTestOk, Notes
             FROM Printers
             ORDER BY Name;
             """;
@@ -1223,11 +1307,9 @@ public sealed partial class PrintPalDatabase
         await using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT OR REPLACE INTO PriceRules (
-                Id, Name, PaperSize, ColorMode, SimplexPriceCents, DuplexPriceCents,
-                Enabled, Priority, UpdatedAtUtc
+                Id, Name, PaperSize, ColorMode, SimplexPriceCents, DuplexPriceCents, UpdatedAtUtc
             ) VALUES (
-                $id, $name, $paperSize, $colorMode, $simplexPrice, $duplexPrice,
-                $enabled, $priority, $updatedAt
+                $id, $name, $paperSize, $colorMode, $simplexPrice, $duplexPrice, $updatedAt
             );
             """;
         Add(command, "$id", rule.Id.ToString("D"));
@@ -1236,8 +1318,6 @@ public sealed partial class PrintPalDatabase
         Add(command, "$colorMode", rule.ColorMode?.ToString());
         Add(command, "$simplexPrice", rule.SimplexPriceCents);
         Add(command, "$duplexPrice", rule.DuplexPriceCents);
-        Add(command, "$enabled", rule.Enabled ? 1 : 0);
-        Add(command, "$priority", rule.Priority);
         Add(command, "$updatedAt", ToIso(rule.UpdatedAtUtc));
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -1248,10 +1328,9 @@ public sealed partial class PrintPalDatabase
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT Id, Name, PaperSize, ColorMode, SimplexPriceCents, DuplexPriceCents,
-                   Enabled, Priority, UpdatedAtUtc
+            SELECT Id, Name, PaperSize, ColorMode, SimplexPriceCents, DuplexPriceCents, UpdatedAtUtc
             FROM PriceRules
-            ORDER BY Priority;
+            ORDER BY PaperSize, ColorMode;
             """;
 
         var rules = new List<PriceRule>();
@@ -1270,75 +1349,6 @@ public sealed partial class PrintPalDatabase
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM PriceRules WHERE Id = $id;";
-        Add(command, "$id", id.ToString("D"));
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    // ------------------------------------------------------------------ routing rules
-
-    public async Task SaveRoutingRuleAsync(RoutingRule rule, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(rule);
-
-        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            INSERT OR REPLACE INTO RoutingRules (
-                Id, Name, Priority, Enabled, MatchPaperSizesJson, MatchColorModesJson,
-                MatchDuplexModesJson, MinPages, MaxPages, SourceAppPattern, DocumentNamePattern,
-                TargetPrinterId, Notes, UpdatedAtUtc
-            ) VALUES (
-                $id, $name, $priority, $enabled, $paperSizes, $colorModes,
-                $duplexModes, $minPages, $maxPages, $sourceApp, $documentName,
-                $targetPrinterId, $notes, $updatedAt
-            );
-            """;
-        Add(command, "$id", rule.Id.ToString("D"));
-        Add(command, "$name", rule.Name);
-        Add(command, "$priority", rule.Priority);
-        Add(command, "$enabled", rule.Enabled ? 1 : 0);
-        Add(command, "$paperSizes", JsonSerializer.Serialize(rule.MatchPaperSizes));
-        Add(command, "$colorModes", JsonSerializer.Serialize(rule.MatchColorModes));
-        Add(command, "$duplexModes", JsonSerializer.Serialize(rule.MatchDuplexModes));
-        Add(command, "$minPages", rule.MinPages);
-        Add(command, "$maxPages", rule.MaxPages);
-        Add(command, "$sourceApp", rule.SourceAppPattern);
-        Add(command, "$documentName", rule.DocumentNamePattern);
-        Add(command, "$targetPrinterId", rule.TargetPrinterId?.ToString("D"));
-        Add(command, "$notes", rule.Notes);
-        Add(command, "$updatedAt", ToIso(rule.UpdatedAtUtc));
-
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<IReadOnlyList<RoutingRule>> GetRoutingRulesAsync(CancellationToken cancellationToken = default)
-    {
-        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT Id, Name, Priority, Enabled, MatchPaperSizesJson, MatchColorModesJson,
-                   MatchDuplexModesJson, MinPages, MaxPages, SourceAppPattern, DocumentNamePattern,
-                   TargetPrinterId, Notes, UpdatedAtUtc
-            FROM RoutingRules
-            ORDER BY Priority, Name;
-            """;
-
-        var rules = new List<RoutingRule>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-
-        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            rules.Add(MapRoutingRule(reader));
-        }
-
-        return rules;
-    }
-
-    public async Task DeleteRoutingRuleAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM RoutingRules WHERE Id = $id;";
         Add(command, "$id", id.ToString("D"));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -1438,6 +1448,20 @@ public sealed partial class PrintPalDatabase
             }
         }
 
+        var routingJson = GetNullableString(reader, "RoutingCapabilityJson");
+        PrinterRoutingCapability? routing = null;
+        if (!string.IsNullOrWhiteSpace(routingJson))
+        {
+            try
+            {
+                routing = JsonSerializer.Deserialize<PrinterRoutingCapability>(routingJson, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                routing = null;
+            }
+        }
+
         var lastTestOk = GetNullableInt32(reader, "LastTestOk");
 
         return new Printer
@@ -1452,7 +1476,9 @@ public sealed partial class PrintPalDatabase
             Enabled = GetInt32(reader, "Enabled") != 0,
             IsDefault = GetInt32(reader, "IsDefault") != 0,
             Capabilities = capabilities,
+            Routing = routing,
             LastTestedAtUtc = ParseNullableDate(GetNullableString(reader, "LastTestedAtUtc")),
+            LastSuccessAtUtc = ParseNullableDate(GetNullableString(reader, "LastSuccessAtUtc")),
             LastTestOk = lastTestOk.HasValue ? lastTestOk.Value != 0 : null,
             Notes = GetNullableString(reader, "Notes"),
         };
@@ -1461,40 +1487,25 @@ public sealed partial class PrintPalDatabase
     private static PriceRule MapPriceRule(SqliteDataReader reader)
     {
         var colorModeText = GetNullableString(reader, "ColorMode");
+        var colorMode = colorModeText is null
+            ? (ColorMode?)null
+            : ParseEnum(colorModeText, ColorMode.Unknown);
+        var paperSize = GetNullableString(reader, "PaperSize");
+        var name = GetNullableString(reader, "Name");
 
         return new PriceRule
         {
             Id = Guid.Parse(GetString(reader, "Id")),
-            Name = GetNullableString(reader, "Name"),
-            PaperSize = GetNullableString(reader, "PaperSize"),
-            ColorMode = colorModeText is null
-                ? null
-                : ParseEnum(colorModeText, ColorMode.Unknown),
+            Name = string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(paperSize) && colorMode is not null
+                ? DefaultPriceRules.PriceRuleName(paperSize, colorMode.Value)
+                : name,
+            PaperSize = paperSize,
+            ColorMode = colorMode,
             SimplexPriceCents = GetInt64(reader, "SimplexPriceCents"),
             DuplexPriceCents = GetInt64(reader, "DuplexPriceCents"),
-            Enabled = GetInt32(reader, "Enabled") != 0,
-            Priority = GetInt32(reader, "Priority"),
             UpdatedAtUtc = ParseDate(GetString(reader, "UpdatedAtUtc")),
         };
     }
-
-    private static RoutingRule MapRoutingRule(SqliteDataReader reader) => new()
-    {
-        Id = Guid.Parse(GetString(reader, "Id")),
-        Name = GetString(reader, "Name"),
-        Priority = GetInt32(reader, "Priority"),
-        Enabled = GetInt32(reader, "Enabled") != 0,
-        MatchPaperSizes = DeserializeList<string>(GetString(reader, "MatchPaperSizesJson")),
-        MatchColorModes = DeserializeList<ColorMode>(GetString(reader, "MatchColorModesJson")),
-        MatchDuplexModes = DeserializeList<DuplexMode>(GetString(reader, "MatchDuplexModesJson")),
-        MinPages = GetNullableInt32(reader, "MinPages"),
-        MaxPages = GetNullableInt32(reader, "MaxPages"),
-        SourceAppPattern = GetNullableString(reader, "SourceAppPattern"),
-        DocumentNamePattern = GetNullableString(reader, "DocumentNamePattern"),
-        TargetPrinterId = GetNullableGuid(reader, "TargetPrinterId"),
-        Notes = GetNullableString(reader, "Notes"),
-        UpdatedAtUtc = ParseDate(GetString(reader, "UpdatedAtUtc")),
-    };
 
     private static List<T> DeserializeList<T>(string json)
     {
@@ -1597,4 +1608,3 @@ public sealed partial class PrintPalDatabase
     private static TEnum ParseEnum<TEnum>(string value, TEnum fallback) where TEnum : struct, Enum =>
         Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed) ? parsed : fallback;
 }
-

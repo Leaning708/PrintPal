@@ -97,7 +97,6 @@ public sealed class ClosedBillRow{
     public string Note => Bill.Note ?? "";
 }
 
-
 public sealed class JobRow
 {
     private readonly IReadOnlyDictionary<Guid, string> _printerNames;
@@ -353,95 +352,20 @@ public sealed class PrinterRow
 
     public string EnabledText => Printer.Enabled ? "启用" : "停用";
 
-    public string DefaultText => Printer.IsDefault ? "默认" : "";
+    /// <summary>右键菜单项文案：当前启用时显示“停用”，反之“启用”。</summary>
+    public string EnableToggleText => Printer.Enabled ? "停用" : "启用";
 
-    public string StatusText => Printer.LastTestOk switch
-    {
-        true => "在线",
-        false => "连接失败",
-        null => "未测试",
-    };
+    /// <summary>健康状态（在线 / 连接失败 / 未检测 / 已停用）。</summary>
+    public PrinterStatus Status => PrinterStatus.Describe(Printer);
 
-    public string CapabilitiesText
-    {
-        get
-        {
-            var capabilities = Printer.Capabilities;
-            if (capabilities is null)
-            {
-                return "未获取";
-            }
+    public string StatusKind => Status.Kind.ToString();
 
-            var formats = capabilities.DocumentFormats.Count == 0
-                ? "?"
-                : string.Join("/", capabilities.DocumentFormats.Select(format => format.DisplayName()));
-            var media = capabilities.MediaSizes.Count == 0
-                ? "?"
-                : string.Join("/", capabilities.MediaSizes.Select(size => size.Name));
+    public string StatusText => Status.PillText;
 
-            return $"{formats}; {media}";
-        }
-    }
-}
+    public string StatusDetail => Status.DetailText ?? "";
 
-public sealed class RoutingRow
-{
-    private readonly IReadOnlyDictionary<Guid, string> _printerNames;
+    public string StatusTooltip => Status.TooltipText;
 
-    public RoutingRow(RoutingRule rule, IReadOnlyDictionary<Guid, string> printerNames)
-    {
-        Rule = rule;
-        _printerNames = printerNames;
-    }
-
-    public RoutingRule Rule { get; }
-
-    public string PriorityText => Rule.Priority.ToString();
-
-    public string Name => Rule.Name;
-
-    public string ConditionsText
-    {
-        get
-        {
-            var parts = new List<string>();
-
-            parts.Add(Rule.MatchPaperSizes.Count == 0
-                ? "纸张任意"
-                : "纸张 " + string.Join("/", Rule.MatchPaperSizes));
-
-            parts.Add(Rule.MatchColorModes.Count == 0
-                ? "颜色任意"
-                : "颜色 " + string.Join("/", Rule.MatchColorModes.Select(mode => mode.DisplayName())));
-
-            parts.Add(Rule.MatchDuplexModes.Count == 0
-                ? "单双面任意"
-                : string.Join("/", Rule.MatchDuplexModes.Select(mode => mode.DisplayName()).Distinct()));
-
-            if (Rule.MinPages.HasValue || Rule.MaxPages.HasValue)
-            {
-                parts.Add($"页数 {Rule.MinPages?.ToString() ?? "0"}–{Rule.MaxPages?.ToString() ?? "∞"}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(Rule.SourceAppPattern))
-            {
-                parts.Add("应用 ~ " + Rule.SourceAppPattern);
-            }
-
-            if (!string.IsNullOrWhiteSpace(Rule.DocumentNamePattern))
-            {
-                parts.Add("文档 ~ " + Rule.DocumentNamePattern);
-            }
-
-            return string.Join(" / ", parts);
-        }
-    }
-
-    public string TargetText => Rule.TargetPrinterId is Guid id && _printerNames.TryGetValue(id, out var name)
-        ? name
-        : "（未设置）";
-
-    public string EnabledText => Rule.Enabled ? "启用" : "停用";
 }
 
 public sealed class PriceRow
@@ -449,19 +373,15 @@ public sealed class PriceRow
     public PriceRow(PriceRule rule)
     {
         Rule = rule;
-        PaperDisplay = string.IsNullOrWhiteSpace(rule.PaperSize) || rule.PaperSize == "*"
-            ? "其他纸张"
-            : rule.PaperSize;
+        PaperDisplay = rule.PaperSize ?? "";
         ColorDisplay = rule.ColorMode switch
         {
             ColorMode.Monochrome => "黑白",
             ColorMode.Color => "彩色",
-            _ => "任意颜色",
+            _ => "未配置",
         };
         SimplexYuan = Money.ToYuan(rule.SimplexPriceCents);
         DuplexYuan = Money.ToYuan(rule.DuplexPriceCents);
-        Enabled = rule.Enabled;
-        PriorityText = rule.Priority.ToString();
     }
 
     public PriceRule Rule { get; }
@@ -474,15 +394,10 @@ public sealed class PriceRow
 
     public decimal DuplexYuan { get; set; }
 
-    public bool Enabled { get; set; }
-
-    public string PriorityText { get; }
-
     public void ApplyToRule()
     {
         Rule.SimplexPriceCents = Money.FromYuan(SimplexYuan);
         Rule.DuplexPriceCents = Money.FromYuan(DuplexYuan);
-        Rule.Enabled = Enabled;
         Rule.UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 }

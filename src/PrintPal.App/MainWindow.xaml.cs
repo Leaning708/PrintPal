@@ -31,7 +31,6 @@ public partial class MainWindow : Window
     private readonly IPrintPalBackend _agent;
     private readonly ObservableCollection<JobRow> _jobRows = new();
     private readonly ObservableCollection<PrinterRow> _printerRows = new();
-    private readonly ObservableCollection<RoutingRow> _routingRows = new();
     private readonly ObservableCollection<PriceRow> _priceRows = new();
     private readonly ObservableCollection<BillChipRow> _openBillChips = new();
     private readonly ObservableCollection<ClosedBillRow> _closedBillRows = new();
@@ -60,7 +59,6 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer;
 
     private List<Printer> _printers = new();
-    private List<RoutingRule> _routingRules = new();
     private List<PriceRule> _priceRules = new();
     private List<Bill> _closedBills = new();
     private List<BillSummary> _openBills = new();
@@ -82,6 +80,8 @@ public partial class MainWindow : Window
     private bool _historyDetailsShown;
     private bool _restoreModePosition;
     private DispatcherTimer? _boundsSaveTimer;
+    private DispatcherTimer? _printerHealthTimer;
+    private bool _printerHealthRunning;
     private UiMode _mode = UiMode.Full;
 
     // 历史结账「账单明细」宽度（拖拽后写入 Settings.historyDetailsWidth）
@@ -98,6 +98,9 @@ public partial class MainWindow : Window
     // 界面字体（null = 默认 Microsoft YaHei UI）
     private string? _uiFontFamily;
     private bool _suppressFontChange;
+
+    /// <summary>同一账单优先同一台打印机（Settings.billAffinity，默认开）。</summary>
+    private bool _billAffinityEnabled = true;
 
     // 侧边栏宽度可拖动：64 = 仅图标模式，>= 170 才显示文字
     private const double SidebarCollapsedWidth = 64;
@@ -164,7 +167,6 @@ public partial class MainWindow : Window
         CashierGrid.ItemsSource = _jobRows;
         CompactCashierGrid.ItemsSource = _jobRows;
         PrintersGrid.ItemsSource = _printerRows;
-        RoutingGrid.ItemsSource = _routingRows;
         PricesGrid.ItemsSource = _priceRows;
         HistoryGrid.ItemsSource = _closedBillRows;
         HistoryCashierGrid.ItemsSource = _historyJobRows;
@@ -200,6 +202,7 @@ public partial class MainWindow : Window
         AgentStatusText.Text = "打印服务运行中";
         AgentUriText.Text = agent.IppUri;
         AutoForwardCheck.IsChecked = agent.Options.AutoForward;
+        BillAffinityCheck.IsChecked = _billAffinityEnabled;
 
         var version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.1";
         VersionText.Text = $"PrintPal {version}";
@@ -211,6 +214,10 @@ public partial class MainWindow : Window
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _timer.Tick += async (_, _) => await ReloadAsync();
+
+        // 打印机健康检测：启动后立即一轮，之后每 60 秒一轮（只探活，不改打印能力）。
+        _printerHealthTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+        _printerHealthTimer.Tick += (_, _) => _ = CheckPrinterHealthAsync();
 
         // 窗口移动/缩放后防抖保存边界：任意时刻退出（含强杀）都能恢复最新位置
         LocationChanged += (_, _) => ScheduleBoundsSave();
@@ -272,6 +279,13 @@ public partial class MainWindow : Window
             ThemeManager.ApplyUiFontFamily(_uiFontFamily);
             BuildFontFamilyList();
 
+            // 同一账单优先同一台打印机（默认开）
+            _billAffinityEnabled = !string.Equals(
+                await _agent.Database.GetSettingAsync("billAffinity"),
+                "false",
+                StringComparison.OrdinalIgnoreCase);
+            BillAffinityCheck.IsChecked = _billAffinityEnabled;
+
             // 侧边栏宽度（可拖动；老版本用 sidebarCollapsed 布尔，做一次兼容）
             var savedSidebarWidth = await _agent.Database.GetSettingAsync("sidebarWidth");
             if (double.TryParse(savedSidebarWidth, NumberStyles.Float, CultureInfo.InvariantCulture, out var sidebarWidth) &&
@@ -304,6 +318,8 @@ public partial class MainWindow : Window
             UpdatePrintDetailsPanel();
 
             _timer.Start();
+            _printerHealthTimer?.Start();
+            _ = CheckPrinterHealthAsync();
         }
         catch (Exception ex)
         {
@@ -444,19 +460,17 @@ public partial class MainWindow : Window
         FlowsPage.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
         StatsPage.Visibility = index == 3 ? Visibility.Visible : Visibility.Collapsed;
         PrintersPage.Visibility = index == 4 ? Visibility.Visible : Visibility.Collapsed;
-        RoutingPage.Visibility = index == 5 ? Visibility.Visible : Visibility.Collapsed;
-        PricesPage.Visibility = index == 6 ? Visibility.Visible : Visibility.Collapsed;
-        SettingsPage.Visibility = index == 7 ? Visibility.Visible : Visibility.Collapsed;
+        PricesPage.Visibility = index == 5 ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPage.Visibility = index == 6 ? Visibility.Visible : Visibility.Collapsed;
 
         (PageTitleText.Text, PageSubtitleText.Text) = index switch
         {
             1 => ("历史结账", "按账单归档的结账记录"),
             2 => ("打印流水", "全部打印操作，可追溯到账单"),
             3 => ("统计", "营业额、账单数与多维分布"),
-            4 => ("打印机", "维护 IPP 与 Raw 9100 目标"),
-            5 => ("路由规则", "按纸张、颜色、单双面自动分流"),
-            6 => ("价格表", "按张计价，保存后立即生效"),
-            7 => ("设置", "服务、数据与启动项"),
+            4 => ("打印机", "维护 IPP 与 Raw 9100 目标（含打印能力）"),
+            5 => ("价格表", "按张计价，保存后立即生效"),
+            6 => ("设置", "服务、数据与启动项"),
             _ => ("收银台", "账单收银与打印转发"),
         };
 
@@ -532,12 +546,10 @@ public partial class MainWindow : Window
             var selectedJobId = (ActiveCashierGrid.SelectedItem as JobRow)?.Job.Id;
             var selectedBillId = (HistoryGrid.SelectedItem as ClosedBillRow)?.Bill.Id;
             var selectedPrinterId = (PrintersGrid.SelectedItem as PrinterRow)?.Printer.Id;
-            var selectedRoutingId = (RoutingGrid.SelectedItem as RoutingRow)?.Rule.Id;
             var jobsScroll = GetScrollViewer(CashierGrid);
             var compactJobsScroll = GetScrollViewer(CompactCashierGrid);
             var historyScroll = GetScrollViewer(HistoryGrid);
             var printersScroll = GetScrollViewer(PrintersGrid);
-            var routingScroll = GetScrollViewer(RoutingGrid);
             var pricesScroll = GetScrollViewer(PricesGrid);
             var jobsOffset = jobsScroll?.VerticalOffset ?? 0;
             var jobsHOffset = jobsScroll?.HorizontalOffset ?? 0;
@@ -547,8 +559,6 @@ public partial class MainWindow : Window
             var historyHOffset = historyScroll?.HorizontalOffset ?? 0;
             var printersOffset = printersScroll?.VerticalOffset ?? 0;
             var printersHOffset = printersScroll?.HorizontalOffset ?? 0;
-            var routingOffset = routingScroll?.VerticalOffset ?? 0;
-            var routingHOffset = routingScroll?.HorizontalOffset ?? 0;
             var pricesOffset = pricesScroll?.VerticalOffset ?? 0;
             var pricesHOffset = pricesScroll?.HorizontalOffset ?? 0;
             var bill = await _agent.Database.EnsureActiveBillAsync();
@@ -558,19 +568,17 @@ public partial class MainWindow : Window
             var jobsTask = _agent.Database.GetBillJobsAsync(bill.Id);
             var openBillsTask = _agent.Database.GetOpenBillsAsync();
             var printersTask = _agent.Database.GetPrintersAsync();
-            var routingTask = _agent.Database.GetRoutingRulesAsync();
             var pricesTask = _agent.Database.GetPriceRulesAsync();
             var closedBillsTask = _agent.Database.GetClosedBillsAsync(from, to);
             var jobFlowTask = _agent.Database.GetJobFlowNumbersAsync();
             var billFlowTask = _agent.Database.GetBillFlowNoAsync(bill.Id);
 
-            await Task.WhenAll(jobsTask, openBillsTask, printersTask, routingTask, pricesTask, closedBillsTask,
+            await Task.WhenAll(jobsTask, openBillsTask, printersTask, pricesTask, closedBillsTask,
                 jobFlowTask, billFlowTask);
 
             var jobs = await jobsTask;
             _openBills = (await openBillsTask).ToList();
             _printers = (await printersTask).ToList();
-            _routingRules = (await routingTask).ToList();
             _priceRules = (await pricesTask).ToList();
             _closedBills = (await closedBillsTask).ToList();
             _jobFlowNos = await jobFlowTask;
@@ -601,16 +609,6 @@ public partial class MainWindow : Window
                 PrintersGrid.SelectedItem = _printerRows.FirstOrDefault(row => row.Printer.Id == printerId);
             }
 
-            _routingRows.Clear();
-            foreach (var rule in _routingRules.OrderBy(rule => rule.Priority))
-            {
-                _routingRows.Add(new RoutingRow(rule, printerNames));
-            }
-
-            if (selectedRoutingId is Guid routingId)
-            {
-                RoutingGrid.SelectedItem = _routingRows.FirstOrDefault(row => row.Rule.Id == routingId);
-            }
 
             if (!_pricesDirty)
             {
@@ -642,7 +640,6 @@ public partial class MainWindow : Window
                     RestoreScrollOffset(CompactCashierGrid, compactJobsOffset, compactJobsHOffset);
                     RestoreScrollOffset(HistoryGrid, historyOffset, historyHOffset);
                     RestoreScrollOffset(PrintersGrid, printersOffset, printersHOffset);
-                    RestoreScrollOffset(RoutingGrid, routingOffset, routingHOffset);
                     RestoreScrollOffset(PricesGrid, pricesOffset, pricesHOffset);
                 }),
                 DispatcherPriority.Loaded);
@@ -3574,7 +3571,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new TargetPrinterWindow(_printers) { Owner = this };
+        var dialog = new TargetPrinterWindow(row.Job, _printers) { Owner = this };
         if (dialog.ShowDialog() != true || dialog.SelectedPrinter is null)
         {
             return;
@@ -3771,6 +3768,48 @@ public partial class MainWindow : Window
         await ReloadAsync();
     }
 
+    /// <summary>右键打印机行先选中该行，再弹出操作菜单。</summary>
+    private void PrintersGrid_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid grid
+            && ItemsControl.ContainerFromElement(grid, e.OriginalSource as DependencyObject) is DataGridRow row)
+        {
+            grid.SelectedItem = row.Item;
+        }
+    }
+
+    /// <summary>空白处右键不弹菜单（只在打印机行上弹）。</summary>
+    private void PrintersGrid_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is DataGrid grid
+            && ItemsControl.ContainerFromElement(grid, e.OriginalSource as DependencyObject) is not DataGridRow)
+        {
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>右键菜单：启用 / 停用当前打印机。</summary>
+    private async void TogglePrinterEnabled_Click(object sender, RoutedEventArgs e)
+    {
+        var printer = SelectedPrinter;
+        if (printer is null)
+        {
+            return;
+        }
+
+        printer.Enabled = !printer.Enabled;
+        await _agent.Database.SavePrinterAsync(printer);
+        StatusBarText.Text = printer.Enabled
+            ? $"已启用打印机“{printer.Name}”"
+            : $"已停用打印机“{printer.Name}”";
+        await ReloadAsync();
+
+        if (printer.Enabled)
+        {
+            _ = CheckPrinterHealthAsync();
+        }
+    }
+
     private async void TestPrinter_Click(object sender, RoutedEventArgs e)
     {
         var printer = SelectedPrinter;
@@ -3782,17 +3821,21 @@ public partial class MainWindow : Window
 
         try
         {
+            var testedAt = DateTimeOffset.UtcNow;
+
             if (printer.Protocol == PrinterProtocol.Ipp)
             {
                 using var client = new IppClient();
                 var capabilities = await client.GetPrinterAttributesAsync(new Uri(printer.Uri));
                 printer.Capabilities = capabilities;
                 printer.LastTestOk = true;
-                printer.LastTestedAtUtc = DateTimeOffset.UtcNow;
+                printer.LastTestedAtUtc = testedAt;
+                printer.LastSuccessAtUtc = testedAt;
                 await _agent.Database.SavePrinterAsync(printer);
 
                 MessageBox.Show(
-                    $"连接成功：{capabilities.Name ?? printer.Name}\n" +
+                    $"连接成功 · {PrinterStatus.FormatFull(testedAt)}\n" +
+                    $"名称：{capabilities.Name ?? printer.Name}\n" +
                     $"格式：{string.Join(", ", capabilities.DocumentFormats.Select(format => format.DisplayName()))}\n" +
                     $"纸张：{string.Join(", ", capabilities.MediaSizes.Select(size => size.Name))}\n" +
                     $"颜色：{string.Join(", ", capabilities.ColorModes)}\n" +
@@ -3807,10 +3850,15 @@ public partial class MainWindow : Window
                 using var tcp = new TcpClient();
                 await tcp.ConnectAsync(printer.Host, printer.Port, timeout.Token);
                 printer.LastTestOk = true;
-                printer.LastTestedAtUtc = DateTimeOffset.UtcNow;
+                printer.LastTestedAtUtc = testedAt;
+                printer.LastSuccessAtUtc = testedAt;
                 await _agent.Database.SavePrinterAsync(printer);
-                MessageBox.Show($"TCP 连接成功：{printer.Host}:{printer.Port}", "PrintPal",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(
+                    $"连接成功 · {PrinterStatus.FormatFull(testedAt)}\n" +
+                    $"TCP {printer.Host}:{printer.Port}",
+                    "PrintPal",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
 
             await ReloadAsync();
@@ -3820,92 +3868,78 @@ public partial class MainWindow : Window
             printer.LastTestOk = false;
             printer.LastTestedAtUtc = DateTimeOffset.UtcNow;
             await _agent.Database.SavePrinterAsync(printer);
-            MessageBox.Show($"连接失败：{ex.GetType().Name}: {ex.Message}", "PrintPal",
+            var status = PrinterStatus.FormatTestResult(false, printer.LastTestedAtUtc, printer.LastSuccessAtUtc);
+            MessageBox.Show($"{status}\n{ex.GetType().Name}: {ex.Message}", "PrintPal",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             await ReloadAsync();
         }
     }
 
-    private async void SetDefault_Click(object sender, RoutedEventArgs e)
+    /// <summary>定时探活：只更新状态与时间，不改打印能力（避免悄悄改变路由）。</summary>
+    private async Task CheckPrinterHealthAsync()
     {
-        var selected = SelectedPrinter;
-        if (selected is null)
+        if (_printerHealthRunning || !_initialized)
         {
             return;
         }
 
-        foreach (var printer in _printers)
+        _printerHealthRunning = true;
+        try
         {
-            printer.IsDefault = printer.Id == selected.Id;
-            await _agent.Database.SavePrinterAsync(printer);
+            var printers = (await _agent.Database.GetPrintersAsync())
+                .Where(printer => printer.Enabled)
+                .ToList();
+
+            foreach (var printer in printers)
+            {
+                if (!printer.Enabled)
+                {
+                    continue;
+                }
+
+                var ok = await ProbePrinterAsync(printer);
+                var now = DateTimeOffset.UtcNow;
+                printer.LastTestedAtUtc = now;
+                printer.LastTestOk = ok;
+                if (ok)
+                {
+                    printer.LastSuccessAtUtc = now;
+                }
+
+                await _agent.Database.SavePrinterAsync(printer);
+            }
         }
-
-        await ReloadAsync();
-    }
-
-    // ------------------------------------------------------------------ routing
-
-    private RoutingRule? SelectedRouting => (RoutingGrid.SelectedItem as RoutingRow)?.Rule;
-
-    private async void AddRouting_Click(object sender, RoutedEventArgs e)
-    {
-        if (_printers.Count == 0)
+        catch (Exception ex)
         {
-            MessageBox.Show("请先添加打印机。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            Console.WriteLine($"printer health check failed: {ex.Message}");
         }
-
-        var dialog = new RoutingEditWindow(null, _printers) { Owner = this };
-        if (dialog.ShowDialog() == true)
+        finally
         {
-            await _agent.Database.SaveRoutingRuleAsync(dialog.Rule);
-            await ReloadAsync();
-        }
-    }
-
-    // 双击路由规则行直接进入编辑；表头/空白处双击不动作。
-    private void RoutingGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (e.OriginalSource is DependencyObject source
-            && ItemsControl.ContainerFromElement(RoutingGrid, source) is DataGridRow)
-        {
-            EditRouting_Click(sender, e);
+            _printerHealthRunning = false;
         }
     }
 
-    private async void EditRouting_Click(object sender, RoutedEventArgs e)
+    private static async Task<bool> ProbePrinterAsync(Printer printer)
     {
-        var rule = SelectedRouting;
-        if (rule is null)
+        try
         {
-            MessageBox.Show("请选择路由规则。", "PrintPal", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
+            if (printer.Protocol == PrinterProtocol.Ipp)
+            {
+                using var client = new IppClient();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await client.GetPrinterAttributesAsync(new Uri(printer.Uri), cts.Token);
+                return true;
+            }
 
-        var dialog = new RoutingEditWindow(rule, _printers) { Owner = this };
-        if (dialog.ShowDialog() == true)
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var tcp = new TcpClient();
+            await tcp.ConnectAsync(printer.Host, printer.Port, timeout.Token);
+            return true;
+        }
+        catch
         {
-            await _agent.Database.SaveRoutingRuleAsync(dialog.Rule);
-            await ReloadAsync();
+            return false;
         }
-    }
-
-    private async void DeleteRouting_Click(object sender, RoutedEventArgs e)
-    {
-        var rule = SelectedRouting;
-        if (rule is null)
-        {
-            return;
-        }
-
-        if (MessageBox.Show($"删除路由规则“{rule.Name}”？", "PrintPal",
-                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        await _agent.Database.DeleteRoutingRuleAsync(rule.Id);
-        await ReloadAsync();
     }
 
     // ------------------------------------------------------------------ prices
@@ -4012,6 +4046,18 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ settings
 
+    private async void BillAffinity_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+
+        var enabled = BillAffinityCheck.IsChecked == true;
+        _billAffinityEnabled = enabled;
+        await _agent.Database.SetSettingAsync("billAffinity", enabled ? "true" : "false");
+        StatusBarText.Text = enabled ? "已开启：同一账单优先同一台打印机" : "已关闭：同一账单优先";
+    }
     private async void AutoForward_Changed(object sender, RoutedEventArgs e)
     {
         if (!_initialized)
@@ -4334,6 +4380,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _timer.Stop();
+        _printerHealthTimer?.Stop();
 
         if (_trayIcon is not null)
         {

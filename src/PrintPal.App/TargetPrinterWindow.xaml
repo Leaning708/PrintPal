@@ -18,7 +18,7 @@
 
         <StackPanel Grid.Row="0" Margin="2,0,0,16">
             <TextBlock Text="选择目标打印机" Style="{StaticResource PageTitle}" />
-            <TextBlock Text="覆盖当前任务的目标后立即转发" Style="{StaticResource PageSubtitle}" />
+            <TextBlock Text="只能选择打印能力支持该任务的打印机" Style="{StaticResource PageSubtitle}" />
         </StackPanel>
 
         <Border Grid.Row="1" Style="{StaticResource CardBorder}" VerticalAlignment="Top">
@@ -32,7 +32,7 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <Border Style="{StaticResource InsetCard}">
-                    <TextBlock Text="选择后会按当前价格和页数转发；结果可以在打印记录的详情中查看。"
+                    <TextBlock x:Name="HintText" Text="选择后会按当前价格和页数转发；结果可以在打印记录的详情中查看。"
                                Style="{StaticResource MutedText}"
                                TextWrapping="Wrap" />
                 </Border>
@@ -41,7 +41,7 @@
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button Content="取消" Click="Cancel_Click" />
-            <Button Content="转发" Style="{StaticResource PrimaryButton}" Margin="0" Click="Ok_Click" />
+            <Button x:Name="OkButton" Content="转发" Style="{StaticResource PrimaryButton}" Margin="0" Click="Ok_Click" />
         </StackPanel>
     </Grid>
 </Window>

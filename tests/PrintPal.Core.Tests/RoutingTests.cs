@@ -5,208 +5,302 @@ namespace PrintPal.Core.Tests;
 
 public sealed class RoutingTests
 {
-    private static Printer IppPrinter(string name, bool isDefault = false) => new()
+    private static Printer IppPrinter(
+        string name,
+        PrinterRoutingCapability? routing = null,
+        PrinterCapabilities? capabilities = null) => new()
     {
         Name = name,
         Protocol = PrinterProtocol.Ipp,
         Host = "127.0.0.1",
         Port = 8631,
-        IsDefault = isDefault,
-        Capabilities = PrinterCapabilities.CreateDefault(name),
+        Capabilities = capabilities ?? PrinterCapabilities.CreateDefault(name),
+        Routing = routing ?? new PrinterRoutingCapability(),
     };
 
-    private static Printer RawPrinter(string name, DocumentFormat preference, bool isDefault = false) => new()
+    private static Printer RawPrinter(string name, DocumentFormat preference, PrinterRoutingCapability? routing = null) => new()
     {
         Name = name,
         Protocol = PrinterProtocol.Raw,
         Host = "127.0.0.1",
         Port = 9100,
         FormatPreference = preference,
-        IsDefault = isDefault,
         Capabilities = PrinterCapabilities.CreateDefault(name),
+        Routing = routing ?? new PrinterRoutingCapability(),
     };
 
     private static PrintJob Job(
         PaperSize? paper = null,
         ColorMode color = ColorMode.Monochrome,
-        DuplexMode duplex = DuplexMode.Simplex,
-        int pages = 3,
-        string documentName = "report.docx",
-        string? sourceApp = null) => new()
+        DuplexMode duplex = DuplexMode.Simplex) => new()
     {
         PaperSize = paper ?? PaperSize.A4,
         ColorMode = color,
         DuplexMode = duplex,
-        PageCount = pages,
-        DocumentName = documentName,
-        SourceApp = sourceApp,
+        PageCount = 3,
+        DocumentName = "report.docx",
         DocumentFormat = DocumentFormat.Pdf,
     };
 
+    private static PrinterRoutingCapability Routing(
+        string[]? papers = null,
+        ColorMode[]? colors = null,
+        DuplexMode[]? duplex = null) => new()
+    {
+        PaperSizes = papers?.ToList() ?? new List<string>(),
+        ColorModes = colors?.ToList() ?? new List<ColorMode>(),
+        DuplexModes = duplex?.ToList() ?? new List<DuplexMode>(),
+    };
+
+    // ---------------------------------------------------------------- capability
+
     [Fact]
-    public void First_matching_rule_by_priority_wins()
+    public void Empty_capability_matches_any_job()
+    {
+        var capability = new PrinterRoutingCapability();
+
+        Assert.True(capability.Supports(Job(PaperSize.A5, ColorMode.Color, DuplexMode.TwoSidedLongEdge)));
+        Assert.True(capability.Supports(Job()));
+    }
+
+    [Fact]
+    public void Capability_is_cartesian_product_of_papers_colors_duplex()
+    {
+        // 勾了 A4/A5 + 彩色 → 代表 A4/A5 都支持彩色
+        var capability = Routing(
+            new[] { "A4", "A5" },
+            new[] { ColorMode.Color },
+            new[] { DuplexMode.Simplex });
+
+        Assert.True(capability.Supports(Job(PaperSize.A4, ColorMode.Color, DuplexMode.Simplex)));
+        Assert.True(capability.Supports(Job(PaperSize.A5, ColorMode.Color, DuplexMode.Simplex)));
+        Assert.False(capability.Supports(Job(PaperSize.A3, ColorMode.Color, DuplexMode.Simplex)));
+        Assert.False(capability.Supports(Job(PaperSize.A4, ColorMode.Monochrome, DuplexMode.Simplex)));
+        Assert.False(capability.Supports(Job(PaperSize.A4, ColorMode.Color, DuplexMode.TwoSidedLongEdge)));
+    }
+
+    [Fact]
+    public void Detect_results_can_seed_a_routing_capability()
+    {
+        var detected = new PrinterCapabilities
+        {
+            MediaSizes = { PaperSize.A4, PaperSize.A5 },
+            ColorModes = { ColorMode.Monochrome, ColorMode.Color },
+            DuplexModes = { DuplexMode.Simplex, DuplexMode.TwoSidedLongEdge },
+        };
+
+        var routing = PrinterRoutingCapability.FromDetected(detected);
+
+        Assert.Equal(2, routing.PaperSizes.Count);
+        Assert.Equal(2, routing.ColorModes.Count);
+        Assert.Equal(2, routing.DuplexModes.Count);
+        Assert.True(routing.Supports(Job(PaperSize.A4, ColorMode.Color, DuplexMode.TwoSidedLongEdge)));
+        Assert.False(routing.Supports(Job(PaperSize.A3, ColorMode.Color, DuplexMode.Simplex)));
+    }
+
+    // ---------------------------------------------------------------- candidates
+
+    [Fact]
+    public void Candidates_include_printers_whose_capability_covers_the_job()
     {
         var first = IppPrinter("first");
         var second = IppPrinter("second");
 
-        var rules = new[]
-        {
-            new RoutingRule { Name = "low", Priority = 20, TargetPrinterId = second.Id },
-            new RoutingRule { Name = "high", Priority = 10, TargetPrinterId = first.Id },
-        };
-
-        var result = RoutingEngine.Route(Job(), rules, new[] { first, second });
+        var result = RoutingEngine.FindCandidates(Job(), new[] { first, second });
 
         Assert.True(result.IsRouted);
-        Assert.Equal(first.Id, result.Printer!.Id);
-        Assert.Equal("high", result.Rule!.Name);
+        Assert.Equal(2, result.Printers.Count);
     }
 
     [Fact]
-    public void Rule_conditions_are_anded()
+    public void Printers_without_declared_capability_are_not_candidates()
     {
-        var target = IppPrinter("target");
-        var rule = new RoutingRule
-        {
-            Name = "A4 colour duplex",
-            TargetPrinterId = target.Id,
-            MatchPaperSizes = { "A4" },
-            MatchColorModes = { ColorMode.Color },
-            MatchDuplexModes = { DuplexMode.TwoSidedLongEdge },
-        };
+        var declared = IppPrinter("declared");
+        var undeclared = IppPrinter("undeclared", routing: null);
+        undeclared.Routing = null;
 
-        Assert.True(rule.Matches(Job(color: ColorMode.Color, duplex: DuplexMode.TwoSidedLongEdge)));
-        // 长边/短边不再区分：规则里勾“双面”也匹配短边任务
-        Assert.True(rule.Matches(Job(color: ColorMode.Color, duplex: DuplexMode.TwoSidedShortEdge)));
-        Assert.False(rule.Matches(Job(color: ColorMode.Monochrome, duplex: DuplexMode.TwoSidedLongEdge)));
-        Assert.False(rule.Matches(Job(paper: PaperSize.A3, color: ColorMode.Color, duplex: DuplexMode.TwoSidedLongEdge)));
-        Assert.False(rule.Matches(Job(color: ColorMode.Color, duplex: DuplexMode.Simplex)));
-    }
-
-    [Fact]
-    public void Page_range_uses_pages_per_copy()
-    {
-        var rule = new RoutingRule
-        {
-            Name = "6+",
-            MinPages = 6,
-            TargetPrinterId = Guid.NewGuid(),
-        };
-
-        Assert.False(rule.Matches(Job(pages: 5)));
-        Assert.True(rule.Matches(Job(pages: 6)));
-    }
-
-    [Fact]
-    public void Unknown_page_count_does_not_match_a_page_range()
-    {
-        var rule = new RoutingRule
-        {
-            Name = "range",
-            MinPages = 1,
-            MaxPages = 10,
-            TargetPrinterId = Guid.NewGuid(),
-        };
-
-        Assert.False(rule.Matches(Job(pages: 0)));
-    }
-
-    [Fact]
-    public void Source_app_regex_is_case_insensitive()
-    {
-        var target = IppPrinter("target");
-        var rule = new RoutingRule
-        {
-            Name = "WPS",
-            SourceAppPattern = "wps",
-            TargetPrinterId = target.Id,
-        };
-
-        var result = RoutingEngine.Route(
-            Job(sourceApp: "WPS Office"), new[] { rule }, new[] { target });
+        var result = RoutingEngine.FindCandidates(Job(), new[] { declared, undeclared });
 
         Assert.True(result.IsRouted);
-        Assert.Equal(target.Id, result.Printer!.Id);
+        Assert.Single(result.Printers);
+        Assert.Equal(declared.Id, result.Printers[0].Id);
     }
 
     [Fact]
-    public void Invalid_regex_does_not_throw_or_match()
+    public void Disabled_printer_is_excluded()
     {
         var target = IppPrinter("target");
-        var rule = new RoutingRule
-        {
-            Name = "bad regex",
-            DocumentNamePattern = "[",
-            TargetPrinterId = target.Id,
-        };
+        target.Enabled = false;
 
-        var result = RoutingEngine.Route(Job(), new[] { rule }, new[] { target });
+        var result = RoutingEngine.FindCandidates(Job(), new[] { target });
 
         Assert.False(result.IsRouted);
+        Assert.Contains("无法路由", result.Reason);
     }
 
     [Fact]
-    public void Incompatible_rule_target_falls_through_to_default()
+    public void Capability_takes_paper_color_and_duplex_into_account()
+    {
+        var monoA4 = IppPrinter("mono-a4", Routing(
+            new[] { "A4" },
+            new[] { ColorMode.Monochrome },
+            new[] { DuplexMode.Simplex, DuplexMode.TwoSidedLongEdge }));
+        var colorA4 = IppPrinter("color-a4", Routing(
+            new[] { "A4" },
+            new[] { ColorMode.Monochrome, ColorMode.Color },
+            new[] { DuplexMode.Simplex, DuplexMode.TwoSidedLongEdge }));
+        var a3 = IppPrinter("a3", Routing(
+            new[] { "A3", "A5" },
+            new[] { ColorMode.Monochrome, ColorMode.Color },
+            new[] { DuplexMode.Simplex }));
+
+        var printers = new[] { monoA4, colorA4, a3 };
+
+        Assert.Equal(2, RoutingEngine.FindCandidates(Job(PaperSize.A4, ColorMode.Monochrome), printers).Printers.Count);
+        Assert.Single(RoutingEngine.FindCandidates(Job(PaperSize.A4, ColorMode.Color), printers).Printers);
+        Assert.Single(RoutingEngine.FindCandidates(Job(PaperSize.A5, ColorMode.Color), printers).Printers);
+        Assert.False(RoutingEngine.FindCandidates(Job(PaperSize.A5, ColorMode.Color, DuplexMode.TwoSidedLongEdge), printers).IsRouted);
+        Assert.Single(RoutingEngine.FindCandidates(Job(PaperSize.A3, ColorMode.Color), printers).Printers);
+    }
+
+    [Fact]
+    public void Incompatible_format_is_excluded()
     {
         var raw = RawPrinter("raw-ps", DocumentFormat.Ps);
-        var fallback = IppPrinter("ipp-default", isDefault: true);
+        var ipp = IppPrinter("ipp");
 
-        var rule = new RoutingRule { Name = "raw", TargetPrinterId = raw.Id };
-
-        var result = RoutingEngine.Route(Job(), new[] { rule }, new[] { raw, fallback });
+        var result = RoutingEngine.FindCandidates(Job(), new[] { raw, ipp });
 
         Assert.True(result.IsRouted);
-        Assert.Equal(fallback.Id, result.Printer!.Id);
-        Assert.Null(result.Rule);
+        Assert.Single(result.Printers);
+        Assert.Equal(ipp.Id, result.Printers[0].Id);
     }
 
     [Fact]
-    public void Uses_explicit_default_printer_id()
+    public void No_printer_capable_is_unrouted()
     {
-        var explicitDefault = IppPrinter("explicit");
-        var flaggedDefault = IppPrinter("flagged", isDefault: true);
+        var a3Only = IppPrinter("a3", Routing(new[] { "A3" }));
 
-        var result = RoutingEngine.Route(
-            Job(), Array.Empty<RoutingRule>(), new[] { explicitDefault, flaggedDefault },
-            defaultPrinterId: explicitDefault.Id);
-
-        Assert.Equal(explicitDefault.Id, result.Printer!.Id);
-    }
-
-    [Fact]
-    public void No_rule_and_no_default_is_unrouted()
-    {
-        var result = RoutingEngine.Route(Job(), Array.Empty<RoutingRule>(), Array.Empty<Printer>());
-
-        Assert.False(result.IsRouted);
-        Assert.Null(result.Printer);
-    }
-
-    [Fact]
-    public void Incompatible_default_is_unrouted()
-    {
-        var rawPs = RawPrinter("raw-ps", DocumentFormat.Ps, isDefault: true);
-
-        var result = RoutingEngine.Route(Job(), Array.Empty<RoutingRule>(), new[] { rawPs });
+        var result = RoutingEngine.FindCandidates(Job(PaperSize.A4), new[] { a3Only });
 
         Assert.False(result.IsRouted);
         Assert.Contains("不支持", result.Reason);
     }
 
+    // ---------------------------------------------------------------- affinity
+
+    private static PrinterUsageSnapshot Usage(
+        Dictionary<Guid, int>? billCounts = null,
+        Dictionary<Guid, DateTimeOffset>? billLastUsed = null,
+        Dictionary<Guid, int>? otherOpen = null,
+        Dictionary<Guid, DateTimeOffset>? lastUsed = null) =>
+        new(billCounts ?? new(), billLastUsed ?? new(), otherOpen ?? new(), lastUsed ?? new());
+
     [Fact]
-    public void Disabled_rule_is_ignored()
+    public void Affinity_prefers_printer_already_used_by_the_bill()
     {
-        var target = IppPrinter("target");
-        var rule = new RoutingRule
-        {
-            Name = "disabled",
-            Enabled = false,
-            TargetPrinterId = target.Id,
-        };
+        var first = IppPrinter("first");
+        var second = IppPrinter("second");
 
-        var result = RoutingEngine.Route(Job(), new[] { rule }, new[] { target });
+        var choice = AffinityPolicy.Choose(
+            new[] { first, second },
+            Usage(billCounts: new() { [second.Id] = 2 },
+                  billLastUsed: new() { [second.Id] = DateTimeOffset.UtcNow }),
+            affinityEnabled: true);
 
-        Assert.False(result.IsRouted);
+        Assert.NotNull(choice);
+        Assert.Equal(second.Id, choice!.Printer.Id);
+        Assert.Equal(RouteSource.Affinity, choice.Source);
+    }
+
+    [Fact]
+    public void Affinity_prefers_printer_with_more_jobs_in_the_bill()
+    {
+        var first = IppPrinter("first");
+        var second = IppPrinter("second");
+        var older = DateTimeOffset.UtcNow.AddMinutes(-10);
+
+        var choice = AffinityPolicy.Choose(
+            new[] { first, second },
+            Usage(
+                billCounts: new() { [first.Id] = 1, [second.Id] = 3 },
+                billLastUsed: new() { [first.Id] = older, [second.Id] = older }),
+            affinityEnabled: true);
+
+        Assert.Equal(second.Id, choice!.Printer.Id);
+    }
+
+    [Fact]
+    public void Affinity_is_skipped_when_disabled()
+    {
+        var first = IppPrinter("first");
+        var second = IppPrinter("second");
+
+        var choice = AffinityPolicy.Choose(
+            new[] { first, second },
+            Usage(billCounts: new() { [second.Id] = 5 }),
+            affinityEnabled: false);
+
+        Assert.NotNull(choice);
+        Assert.Equal(RouteSource.Balance, choice!.Source);
+        Assert.Equal(first.Id, choice.Printer.Id);
+    }
+
+    [Fact]
+    public void Balance_prefers_printer_without_other_open_bills()
+    {
+        var busy = IppPrinter("busy");
+        var idle = IppPrinter("idle");
+
+        var choice = AffinityPolicy.Choose(
+            new[] { busy, idle },
+            Usage(otherOpen: new() { [busy.Id] = 2, [idle.Id] = 0 }),
+            affinityEnabled: true);
+
+        Assert.Equal(idle.Id, choice!.Printer.Id);
+        Assert.Equal(RouteSource.Balance, choice.Source);
+    }
+
+    [Fact]
+    public void Balance_prefers_least_other_open_bills()
+    {
+        var more = IppPrinter("more");
+        var less = IppPrinter("less");
+
+        var choice = AffinityPolicy.Choose(
+            new[] { more, less },
+            Usage(otherOpen: new() { [more.Id] = 3, [less.Id] = 1 }),
+            affinityEnabled: true);
+
+        Assert.Equal(less.Id, choice!.Printer.Id);
+    }
+
+    [Fact]
+    public void Balance_tie_breaks_by_least_recently_used()
+    {
+        var recent = IppPrinter("recent");
+        var stale = IppPrinter("stale");
+
+        var choice = AffinityPolicy.Choose(
+            new[] { recent, stale },
+            Usage(
+                otherOpen: new() { [recent.Id] = 0, [stale.Id] = 0 },
+                lastUsed: new()
+                {
+                    [recent.Id] = DateTimeOffset.UtcNow,
+                    [stale.Id] = DateTimeOffset.UtcNow.AddHours(-5),
+                }),
+            affinityEnabled: true);
+
+        Assert.Equal(stale.Id, choice!.Printer.Id);
+    }
+
+    [Fact]
+    public void No_candidates_yields_no_choice()
+    {
+        var choice = AffinityPolicy.Choose(Array.Empty<Printer>(), Usage(), affinityEnabled: true);
+
+        Assert.Null(choice);
     }
 
     [Fact]

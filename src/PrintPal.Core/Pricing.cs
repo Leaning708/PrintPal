@@ -17,12 +17,13 @@ public sealed class PriceRule
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
+    /// <summary>展示用名称，由 UI 按"纸张 颜色"自动生成。</summary>
     public string? Name { get; set; }
 
-    /// <summary>Canonical paper name, or null/""/"*" for any paper.</summary>
+    /// <summary>Canonical paper name；价格表不再支持通配纸张（必须有具体纸型）。</summary>
     public string? PaperSize { get; set; }
 
-    /// <summary>Null or Unknown means any colour mode.</summary>
+    /// <summary>价格必须精确匹配颜色；null 视为未配置（迁移后不再产生）。</summary>
     public ColorMode? ColorMode { get; set; }
 
     /// <summary>Price for one sheet printed on one side, in cents.</summary>
@@ -30,10 +31,6 @@ public sealed class PriceRule
 
     /// <summary>Price for one sheet printed on both sides, in cents.</summary>
     public long DuplexPriceCents { get; set; }
-
-    public bool Enabled { get; set; } = true;
-
-    public int Priority { get; set; }
 
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 
@@ -43,25 +40,16 @@ public sealed class PriceRule
     public bool IsColorSpecific =>
         ColorMode is not null && ColorMode != Core.ColorMode.Unknown;
 
+    /// <summary>精确匹配：纸张名相同 且 颜色相同（价格表不允许通配/重复）。</summary>
     public bool Matches(PaperSize paper, ColorMode color)
     {
-        if (!Enabled)
-        {
-            return false;
-        }
-
-        if (IsPaperSpecific &&
+        if (!IsPaperSpecific ||
             !string.Equals(PaperSize, paper.Name, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (IsColorSpecific && ColorMode != color)
-        {
-            return false;
-        }
-
-        return true;
+        return ColorMode == color;
     }
 }
 
@@ -178,6 +166,10 @@ public static class PriceCalculator
 
 public static class PriceResolver
 {
+    /// <summary>
+    /// 精确匹配 (纸张, 颜色)。价格表不允许通配与重复，找不到就返回 null（任务进 NeedsReview，
+    /// 收银台阻止结账并提示补价格）。
+    /// </summary>
     public static PriceRule? Resolve(
         IEnumerable<PriceRule> rules,
         PaperSize paper,
@@ -186,13 +178,7 @@ public static class PriceResolver
         ArgumentNullException.ThrowIfNull(rules);
         ArgumentNullException.ThrowIfNull(paper);
 
-        return rules
-            .Where(rule => rule.Matches(paper, color))
-            .OrderByDescending(rule => rule.IsPaperSpecific)
-            .ThenByDescending(rule => rule.IsColorSpecific)
-            .ThenBy(rule => rule.Priority)
-            .ThenBy(rule => rule.Id)
-            .FirstOrDefault();
+        return rules.FirstOrDefault(rule => rule.Matches(paper, color));
     }
 }
 
@@ -203,50 +189,32 @@ public static class DefaultPriceRules
     /// A4 mono 0.20 / 0.30, A4 colour 0.80 / 1.20,
     /// A3 mono 0.40 / 0.60, A3 colour 1.60 / 2.40,
     /// A5 mono 0.15 / 0.22, A5 colour 0.60 / 0.90.
-    /// A wildcard-paper fallback uses the A4 prices for Letter/Legal/custom.
+    /// 不再有“其他纸张”通配行：未配置的纸型会明确提示补价格。
     /// </summary>
     public static IReadOnlyList<PriceRule> Create() => new List<PriceRule>
     {
-        Specific(PaperSize.A4, ColorMode.Monochrome, 20, 30, 10, "A4 黑白"),
-        Specific(PaperSize.A4, ColorMode.Color, 80, 120, 11, "A4 彩色"),
-        Specific(PaperSize.A3, ColorMode.Monochrome, 40, 60, 20, "A3 黑白"),
-        Specific(PaperSize.A3, ColorMode.Color, 160, 240, 21, "A3 彩色"),
-        Specific(PaperSize.A5, ColorMode.Monochrome, 15, 22, 30, "A5 黑白"),
-        Specific(PaperSize.A5, ColorMode.Color, 60, 90, 31, "A5 彩色"),
-        Wildcard(ColorMode.Monochrome, 20, 30, 1000, "其他纸张 黑白（按 A4）"),
-        Wildcard(ColorMode.Color, 80, 120, 1001, "其他纸张 彩色（按 A4）"),
+        Specific(PaperSize.A4, ColorMode.Monochrome, 20, 30),
+        Specific(PaperSize.A4, ColorMode.Color, 80, 120),
+        Specific(PaperSize.A3, ColorMode.Monochrome, 40, 60),
+        Specific(PaperSize.A3, ColorMode.Color, 160, 240),
+        Specific(PaperSize.A5, ColorMode.Monochrome, 15, 22),
+        Specific(PaperSize.A5, ColorMode.Color, 60, 90),
     };
 
     private static PriceRule Specific(
         PaperSize paper,
         ColorMode color,
         long simplexCents,
-        long duplexCents,
-        int priority,
-        string name) => new()
+        long duplexCents) => new()
     {
-        Name = name,
+        Name = PriceRuleName(paper.Name, color),
         PaperSize = paper.Name,
         ColorMode = color,
         SimplexPriceCents = simplexCents,
         DuplexPriceCents = duplexCents,
-        Priority = priority,
-        Enabled = true,
     };
 
-    private static PriceRule Wildcard(
-        ColorMode color,
-        long simplexCents,
-        long duplexCents,
-        int priority,
-        string name) => new()
-    {
-        Name = name,
-        PaperSize = null,
-        ColorMode = color,
-        SimplexPriceCents = simplexCents,
-        DuplexPriceCents = duplexCents,
-        Priority = priority,
-        Enabled = true,
-    };
+    /// <summary>价格行名称统一按"纸张 颜色"生成，避免手填不一致。</summary>
+    public static string PriceRuleName(string paperName, ColorMode color) =>
+        $"{paperName} {color.DisplayName()}";
 }

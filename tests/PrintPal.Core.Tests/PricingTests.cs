@@ -130,7 +130,7 @@ public sealed class PricingTests
     }
 
     [Fact]
-    public void Resolver_prefers_specific_rule_over_wildcard()
+    public void Resolver_matches_exact_paper_and_color()
     {
         var rules = DefaultPriceRules.Create();
 
@@ -138,11 +138,33 @@ public sealed class PricingTests
         Assert.NotNull(a4Color);
         Assert.Equal(80, a4Color!.SimplexPriceCents);
 
-        // Letter is not in the specific table; the wildcard fallback uses A4 prices.
-        var letterMono = PriceResolver.Resolve(rules, PaperSize.Letter, ColorMode.Monochrome);
-        Assert.NotNull(letterMono);
-        Assert.Equal(20, letterMono!.SimplexPriceCents);
-        Assert.Null(letterMono.PaperSize);
+        // 价格表不再有“其他纸张”通配行：未配置的纸型返回 null（任务进 NeedsReview）
+        Assert.Null(PriceResolver.Resolve(rules, PaperSize.Letter, ColorMode.Monochrome));
+
+        // 颜色也必须精确匹配
+        var rule = new PriceRule
+        {
+            PaperSize = "A4",
+            ColorMode = ColorMode.Monochrome,
+            SimplexPriceCents = 10,
+            DuplexPriceCents = 20,
+        };
+        Assert.NotNull(PriceResolver.Resolve(new[] { rule }, PaperSize.A4, ColorMode.Monochrome));
+        Assert.Null(PriceResolver.Resolve(new[] { rule }, PaperSize.A4, ColorMode.Color));
+    }
+
+    [Fact]
+    public void Default_table_has_no_wildcard_rows()
+    {
+        var rules = DefaultPriceRules.Create();
+
+        Assert.Equal(6, rules.Count);
+        Assert.All(rules, rule =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(rule.PaperSize));
+            Assert.NotEqual("*", rule.PaperSize);
+            Assert.NotNull(rule.ColorMode);
+        });
     }
 
     [Fact]
@@ -156,24 +178,6 @@ public sealed class PricingTests
                 ColorMode = ColorMode.Color,
                 SimplexPriceCents = 1,
                 DuplexPriceCents = 2,
-            },
-        };
-
-        Assert.Null(PriceResolver.Resolve(rules, PaperSize.A4, ColorMode.Monochrome));
-    }
-
-    [Fact]
-    public void Resolver_skips_disabled_rules()
-    {
-        var rules = new[]
-        {
-            new PriceRule
-            {
-                PaperSize = "A4",
-                ColorMode = ColorMode.Monochrome,
-                SimplexPriceCents = 1,
-                DuplexPriceCents = 2,
-                Enabled = false,
             },
         };
 

@@ -266,10 +266,18 @@ public sealed class PrintPalAgent : IPrintPalBackend, IAsyncDisposable
         var printers = await database.GetPrintersAsync(cancellationToken).ConfigureAwait(false);
         if (printers.Count == 0)
         {
-            var color = CreateIppPrinter("Fake-A4-Color", 8631);
-            var mono = CreateIppPrinter("Fake-A4-Mono", 8632);
-            mono.IsDefault = true;
-            var a3 = CreateIppPrinter("Fake-A3", 8633);
+            var color = CreateIppPrinter(
+                "Fake-A4-Color", 8631,
+                new[] { PaperSize.A4 },
+                new[] { ColorMode.Monochrome, ColorMode.Color });
+            var mono = CreateIppPrinter(
+                "Fake-A4-Mono", 8632,
+                new[] { PaperSize.A4 },
+                new[] { ColorMode.Monochrome });
+            var a3 = CreateIppPrinter(
+                "Fake-A3", 8633,
+                new[] { PaperSize.A3, PaperSize.A4, PaperSize.A5 },
+                new[] { ColorMode.Monochrome, ColorMode.Color });
 
             foreach (var printer in new[] { color, mono, a3 })
             {
@@ -278,54 +286,13 @@ public sealed class PrintPalAgent : IPrintPalBackend, IAsyncDisposable
 
             printers = new List<Printer> { color, mono, a3 };
         }
-
-        var routingRules = await database.GetRoutingRulesAsync(cancellationToken).ConfigureAwait(false);
-        if (routingRules.Count > 0)
-        {
-            return;
-        }
-
-        var colorPrinter = printers.FirstOrDefault(p => p.Name == "Fake-A4-Color");
-        var monoPrinter = printers.FirstOrDefault(p => p.Name == "Fake-A4-Mono");
-        var a3Printer = printers.FirstOrDefault(p => p.Name == "Fake-A3");
-
-        if (colorPrinter is not null)
-        {
-            await database.SaveRoutingRuleAsync(new RoutingRule
-            {
-                Name = "A4 彩色",
-                Priority = 10,
-                MatchPaperSizes = { "A4" },
-                MatchColorModes = { ColorMode.Color },
-                TargetPrinterId = colorPrinter.Id,
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (monoPrinter is not null)
-        {
-            await database.SaveRoutingRuleAsync(new RoutingRule
-            {
-                Name = "A4 黑白",
-                Priority = 20,
-                MatchPaperSizes = { "A4" },
-                MatchColorModes = { ColorMode.Monochrome },
-                TargetPrinterId = monoPrinter.Id,
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (a3Printer is not null)
-        {
-            await database.SaveRoutingRuleAsync(new RoutingRule
-            {
-                Name = "A3",
-                Priority = 30,
-                MatchPaperSizes = { "A3" },
-                TargetPrinterId = a3Printer.Id,
-            }, cancellationToken).ConfigureAwait(false);
-        }
     }
 
-    private static Printer CreateIppPrinter(string name, int port) => new()
+    private static Printer CreateIppPrinter(
+        string name,
+        int port,
+        IReadOnlyList<PaperSize> papers,
+        IReadOnlyList<ColorMode> colors) => new()
     {
         Name = name,
         Protocol = PrinterProtocol.Ipp,
@@ -333,7 +300,28 @@ public sealed class PrintPalAgent : IPrintPalBackend, IAsyncDisposable
         Port = port,
         ResourcePath = "/ipp/print",
         Enabled = true,
-        Capabilities = PrinterCapabilities.CreateDefault(name),
+        Capabilities = new PrinterCapabilities
+        {
+            Name = name,
+            MakeAndModel = "PrintPal Virtual Printer",
+            DocumentFormats = new List<DocumentFormat> { DocumentFormat.Pdf, DocumentFormat.Pwg },
+            MediaSizes = papers.ToList(),
+            ColorModes = colors.ToList(),
+            DuplexModes = new List<DuplexMode>
+            {
+                DuplexMode.Simplex,
+                DuplexMode.TwoSidedLongEdge,
+            },
+            MinCopies = 1,
+            MaxCopies = 999,
+        },
+        // 演示数据：路由能力 = 产品模型（纸张 × 颜色 × 单双面，勾选支持即代表全部组合）
+        Routing = new PrinterRoutingCapability
+        {
+            PaperSizes = papers.Select(paper => paper.Name).ToList(),
+            ColorModes = colors.ToList(),
+            DuplexModes = new List<DuplexMode> { DuplexMode.Simplex, DuplexMode.TwoSidedLongEdge },
+        },
     };
 }
 

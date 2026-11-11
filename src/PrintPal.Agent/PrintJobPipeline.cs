@@ -112,7 +112,7 @@ public sealed class PrintJobPipeline
         if (priceRule is null)
         {
             job.Status = JobStatus.NeedsReview;
-            job.StatusReason = "没有匹配的价格规则";
+            job.StatusReason = "未配置该纸张/颜色的价格";
             await _database.SaveJobAsync(job, cancellationToken).ConfigureAwait(false);
             Log($"JOB {job.Id} NeedsReview (no price rule)");
             return job;
@@ -121,20 +121,38 @@ public sealed class PrintJobPipeline
         job.ApplyQuote(PriceCalculator.Calculate(priceRule, job.PageCount, job.Copies, job.DuplexMode));
 
         var printers = await _database.GetPrintersAsync(cancellationToken).ConfigureAwait(false);
-        var routingRules = await _database.GetRoutingRulesAsync(cancellationToken).ConfigureAwait(false);
-        var defaultPrinter = printers.FirstOrDefault(printer => printer.Enabled && printer.IsDefault);
-
-        var route = RoutingEngine.Route(job, routingRules, printers, defaultPrinter?.Id);
-        if (!route.IsRouted)
+        // 打印机自己声明能力：先算候选集，再由“同单亲和 + 跨账单均衡”挑一台。
+        var candidates = RoutingEngine.FindCandidates(job, printers);
+        if (!candidates.IsRouted)
         {
             job.Status = JobStatus.Unrouted;
-            job.StatusReason = route.Reason;
+            job.StatusReason = candidates.Reason;
             await _database.SaveJobAsync(job, cancellationToken).ConfigureAwait(false);
-            Log($"JOB {job.Id} Unrouted: {route.Reason}");
+            Log($"JOB {job.Id} Unrouted: {candidates.Reason}");
             return job;
         }
 
-        job.TargetPrinterId = route.Printer!.Id;
+        var affinityEnabled = true;
+        var storedAffinity = await _database.GetSettingAsync("billAffinity", cancellationToken)
+            .ConfigureAwait(false);
+        if (bool.TryParse(storedAffinity, out var storedAffinityEnabled))
+        {
+            affinityEnabled = storedAffinityEnabled;
+        }
+
+        var usage = await _database.GetPrinterUsageSnapshotAsync(job.BillId, cancellationToken)
+            .ConfigureAwait(false);
+        var choice = AffinityPolicy.Choose(candidates.Printers, usage, affinityEnabled);
+        if (choice is null)
+        {
+            job.Status = JobStatus.Unrouted;
+            job.StatusReason = "没有可用的候选打印机";
+            await _database.SaveJobAsync(job, cancellationToken).ConfigureAwait(false);
+            Log($"JOB {job.Id} Unrouted: no usable candidate");
+            return job;
+        }
+
+        job.TargetPrinterId = choice.Printer.Id;
 
         var autoForward = _options.AutoForward;
         var storedAutoForward = await _database.GetSettingAsync("autoForward", cancellationToken)
@@ -145,7 +163,7 @@ public sealed class PrintJobPipeline
         }
 
         job.Status = autoForward ? JobStatus.Priced : JobStatus.Held;
-        job.StatusReason = autoForward ? route.Reason : "等待人工确认";
+        job.StatusReason = autoForward ? choice.Reason : "等待人工确认";
 
         await _database.SaveJobAsync(job, cancellationToken).ConfigureAwait(false);
 
@@ -157,7 +175,7 @@ public sealed class PrintJobPipeline
         Log(
             $"JOB {job.Id} [{job.BillNameSnapshot}] {job.DocumentName} {job.PageCount}p x{job.Copies} " +
             $"{job.PaperSize.Name} {job.ColorMode} {job.DuplexMode} = {Money.FormatCents(job.AmountCents)} " +
-            $"-> {route.Printer.Name} [{job.Status}]");
+            $"-> {choice.Printer.Name} [{job.Status}] {candidates.Reason}；{choice.Reason}");
 
         return job;
     }

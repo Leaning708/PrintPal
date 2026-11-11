@@ -21,7 +21,7 @@
 
         <StackPanel Grid.Row="0" Margin="2,0,0,16">
             <TextBlock Text="价格编辑" Style="{StaticResource PageTitle}" />
-            <TextBlock Text="按纸张与颜色匹配的单条计价规则" Style="{StaticResource PageSubtitle}" />
+            <TextBlock Text="按纸张 + 颜色精确匹配的单条价格（无优先级、始终生效）" Style="{StaticResource PageSubtitle}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,4,0">
@@ -45,7 +45,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="纸张与颜色是这条规则的匹配条件，如需调整请删除后重建规则。"
+                    <TextBlock Text="纸张与颜色是这条价格的唯一标识，如需调整请删除后重建。"
                                Style="{StaticResource SubtleText}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
@@ -61,19 +61,14 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="单面价 / 张（元）" Style="{StaticResource LabelText}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="单面价 / 张（元）" Style="{StaticResource LabelText}" Margin="0" /><TextBlock Style="{StaticResource RequiredStar}" /></StackPanel>
                             <TextBox x:Name="SimplexBox" />
                         </StackPanel>
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="双面价 / 张（元）" Style="{StaticResource LabelText}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6"><TextBlock Text="双面价 / 张（元）" Style="{StaticResource LabelText}" Margin="0" /><TextBlock Style="{StaticResource RequiredStar}" /></StackPanel>
                             <TextBox x:Name="DuplexBox" />
                         </StackPanel>
                     </Grid>
-
-                    <TextBlock Text="优先级（数字越大越先匹配）" Style="{StaticResource LabelText}" />
-                    <TextBox x:Name="PriorityBox" Margin="0,0,0,14" />
-
-                    <CheckBox x:Name="EnabledCheck" Content="启用这条规则" IsChecked="True" />
                 </StackPanel>
             </Border>
         </StackPanel>

@@ -195,21 +195,15 @@ public sealed class ForwardingIntegrationTests
         Assert.Equal(960, job.AmountCents);
         Assert.Equal(9, job.TotalSheets);
 
-        var routingRule = new RoutingRule
-        {
-            Name = "A4 colour",
-            TargetPrinterId = printer.Id,
-            MatchPaperSizes = { "A4" },
-            MatchColorModes = { ColorMode.Color },
-        };
+        printer.Routing = new PrinterRoutingCapability();
 
-        var route = RoutingEngine.Route(job, new[] { routingRule }, new[] { printer });
-        Assert.True(route.IsRouted);
-        Assert.Equal(printer.Id, route.Printer!.Id);
+        var candidates = RoutingEngine.FindCandidates(job, new[] { printer });
+        Assert.True(candidates.IsRouted);
+        Assert.Equal(printer.Id, candidates.Printers[0].Id);
 
-        job.TargetPrinterId = route.Printer.Id;
+        job.TargetPrinterId = candidates.Printers[0].Id;
         var result = await new PrintJobForwarder().ForwardAsync(
-            job, route.Printer, "%PDF-1.7\n% pipeline\n%%EOF"u8.ToArray());
+            job, candidates.Printers[0], "%PDF-1.7\n% pipeline\n%%EOF"u8.ToArray());
 
         Assert.True(result.Success, result.Message);
         var context = Assert.Single(handler.Contexts);
