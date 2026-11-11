@@ -1,4 +1,4 @@
-﻿# PrintPal 架构设计（Living Document）
+# PrintPal 架构设计（Living Document）
 
 > 版本：v0.9（P7 服务 + MSI 1.0.1；其它 P7 可选）
 > 更新：2026-10-28
@@ -13,8 +13,8 @@ PrintPal 在 Windows 10 / Windows 11 终端上：
 1. 提供一台 **“PrintPal Virtual Printer”** 队列；
 2. 捕获用户从 WPS / Office / 记事本 / Edge 打印的任务；
 3. 在 APP 中展示打印列表：纸张、颜色、单双面、页数、份数、单价、金额；
-4. 按路由规则自动转发到真实打印机；
-5. APP 内配置打印机、路由规则、价格表；支持汇总和 CSV 导出。
+4. 按**打印机打印能力声明**自动转发到真实打印机（同单优先同机、跨账单尽量分散）；
+5. APP 内配置打印机（含路由能力）、价格表；支持汇总和 CSV 导出。
 
 当前阶段已实现 **捕获 → 计价 → 路由 → 转发 → 记录** 的后台链路；WPF UI 在 P3。
 
@@ -57,7 +57,7 @@ P0 证据见 [IPP 捕获报告](spikes/ipp-capture.md)。
 │  │    ├─ PrintJobPipeline：属性归一化 → 计价 → 路由 → SQLite → 入队     │  │
 │  │    ├─ ForwardingWorker：有界重试 / 超时 Unknown / 人工确认           │  │
 │  │    └─ PrintJobForwarder：IPP / Raw 9100                             │  │
-│  │  SQLite: PrintJobs / Printers / PriceRules / RoutingRules / Settings│  │
+│  │  SQLite: PrintJobs / Printers / PriceRules / Settings│  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 │        ▲                                                                 │
 │        │ 读取 SQLite / 修改设置 / 查看记录 / 人工转发 / 目标覆盖         │
@@ -83,7 +83,7 @@ UI 主题：`Themes/Theme.xaml` 定义颜色 token（Brush），`Themes/ThemeMan
 |---|---|
 | `PrintPal.Ipp` | IPP 编解码、客户端、Kestrel 服务端、Windows 兼容能力集 |
 | `PrintPal.Capture` | 文档嗅探、PDF/PS/OXPS 页数、文档存储与 SHA-256 |
-| `PrintPal.Core` | 纸张/颜色/单双面、计价、路由规则、领域模型 |
+| `PrintPal.Core` | 纸张/颜色/单双面、计价、路由（能力声明 + 同单亲和/跨账单均衡）、领域模型 |
 | `PrintPal.Storage` | SQLite 持久化与汇总 |
 | `PrintPal.Forwarding` | IPP `Print-Job`、Raw 9100、失败结果 |
 | `PrintPal.Agent` | 捕获流水线、后台 `ForwardingWorker`、Agent 生命周期、数据库/文档/服务器组装、演示数据种子 |
@@ -181,19 +181,35 @@ amount          = amountPerCopy * N
 
 ## 6. 路由
 
-`RoutingRule` 条件（AND；同类多值 OR；空 = 任意）：
+每台打印机在 `Printers.RoutingCapabilityJson` 里声明**打印能力**（人工配置，产品模型；UI 名称叫「打印能力」）：
 
-- 纸张、颜色、单双面；
-- 页数范围（每份页数）；
-- 来源应用（正则，IPP 路径暂为 null）；
-- 文档名（正则）；
-- 目标打印机、优先级、启用。
+- 纸张集合（A3/A4/A5；空 = 任意）；
+- 颜色集合（黑白/彩色；空 = 任意）；
+- 单双面集合（单面/双面；空 = 任意）。
 
-`RoutingEngine` 按优先级取第一条匹配且**目标格式兼容**的规则；无匹配用默认打印机；
-仍无 → `Unrouted`。格式兼容：
+勾选即代表"该纸张 × 该颜色 × 该单双面"全部可打（笛卡尔积），不再精确到单个组合；纸张至少勾选一种。
+
+`RoutingEngine.FindCandidates` 找出所有符合条件的打印机（启用 + 格式兼容 + 能力覆盖），
+没有候选 → `Unrouted`（没有默认打印机兜底）。
+`AffinityPolicy` 在候选集内选择：**同一账单优先沿用本单已用打印机**（任务数多/最近使用），
+否则按**跨账单均衡**（其它未结账单占用最少 → 最久未使用 → 名称序）。
+格式兼容：
 
 - IPP：能力集的 `document-format-supported`；未知能力视为兼容（测试连接后补全）；
 - Raw：`FormatPreference`（Auto/PDF/PWG/PS）。
+
+详见 [ADR-011](decisions/ADR-011-capability-on-printer.md)（取代 ADR-010 中"规则即能力声明"的存储方式）。
+
+### 6.1 打印机健康检测
+
+状态只在 **App 侧**维护（服务不做健康检查）：
+
+- App 启动立即一轮，之后每 60 秒一轮；只探测 `Enabled = true` 的打印机；
+- IPP：`Get-Printer-Attributes`（5s 超时）；Raw：TCP 连接（3s 超时）；
+- 成功：`LastTestedAtUtc = now`、`LastTestOk = true`、`LastSuccessAtUtc = now`；
+  失败：只更新 `LastTestedAtUtc/LastTestOk`，**保留** `LastSuccessAtUtc`；
+- 自动检测**不修改打印能力**（能力只在手动「测试连接」时刷新），避免悄悄改变路由结果；
+- 列表状态：已停用 > 在线（检测时间）> 连接失败（上次成功时间）> 未检测。
 
 ---
 
@@ -234,10 +250,9 @@ amount          = amountPerCopy * N
 | `PrintJobs` | Id、时间、文档名/用户、格式/路径/SHA、纸张/颜色/单双面、Copies、PageCount、单面/双面价、张数、金额、TargetPrinterId、Status、IsEstimated、PricingJson、RawAttributesJson |
 | `Bills` | Id、SequenceNumber、Name、Note、CreatedAtUtc、Status、ParkedAtUtc、ClosedAtUtc、JobCount、TotalPages、AmountCents |
 | `PrintFlows` | Id、FlowNo（17/20 位）、Kind（Bill/Job）、ParentFlowNo、BillId、JobId、快照（BillNameSnapshot/DocumentNameSnapshot/SpecSnapshot/AmountCents/StatusSnapshot/TargetPrinterSnapshot/UserNameSnapshot）、SequenceInBill、CreatedAtUtc、IsDeleted、Note |
-| `Printers` | Id、Name、Protocol、Host、Port、Path、FormatPreference、Enabled、IsDefault、CapabilitiesJson、LastTest* |
-| `PriceRules` | PaperSize、ColorMode、SimplexPriceCents、DuplexPriceCents、Priority、Enabled |
-| `RoutingRules` | 条件 JSON、目标、优先级、Enabled |
-| `Settings` | Key/Value（如 autoForward、printerUuid、detailsWidth） |
+| `Printers` | Id、Name、Protocol、Host、Port、Path、FormatPreference、Enabled、IsDefault（废弃）、CapabilitiesJson（检测）、RoutingCapabilityJson（打印能力声明）、LastTestedAtUtc/LastTestOk（最近检测）、LastSuccessAtUtc（最后成功）、Notes |
+| `PriceRules` | PaperSize、ColorMode、SimplexPriceCents、DuplexPriceCents、Priority/Enabled（废弃） |
+| `Settings` | Key/Value（如 autoForward、billAffinity、sidebarWidth、detailsWidth） |
 
 金额以“分”为单位（long），无浮点误差。`TotalPages`/`BillableSides` 为计算属性，不重复存储。
 

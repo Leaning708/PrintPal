@@ -1,4 +1,4 @@
-﻿# PrintPal 运行手册（Runbook）
+# PrintPal 运行手册（Runbook）
 
 > 更新：2026-11-02（开发约定：测试后保留现场）
 > 适用于开发机与 Windows 10/11 验证机。
@@ -152,7 +152,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 1. 安装队列（3.3），打印（3.4）；
 2. 打开 App：“打印记录”应出现任务，汇总今日/本周/本月更新，首行自动选中并显示详情；
-3. 切换“打印机/路由规则/价格表/设置”检查数据；
+3. 切换“打印机（含打印能力）/价格表/设置”检查数据；
 4. 设置页点“检查队列”，应显示“已安装（正常）”；
 5. 关闭窗口应隐藏到托盘，Agent 继续运行；托盘“退出”停止。
 
@@ -338,6 +338,12 @@ Win10 的 `prnms012.inf` 在 DriverStore 中但被 `ExcludeFromSelect` 隐藏，
 ---
 
 ## 7. 数据与日志
+
+> **库结构与新版本不一致时（无升级迁移）**：产品尚未正式发布，schema 变化不写迁移。
+> 开发/测试库若早于 schema 变更（例如 `PriceRules` 还带旧的 `Enabled/Priority` 列），
+> 直接删掉 `C:\ProgramData\PrintPal`（或删 `printpal.db`）后重启 App/服务，让服务按新 schema 重建；
+> 打印机需要在 UI 里重新添加（价格表会由服务自动补默认 6 行）。
+> 2026-11-11 一次性处理过：`ALTER TABLE PriceRules DROP COLUMN Enabled/Priority`。
 
 ```
 %LOCALAPPDATA%\PrintPal\            # 生产默认（AgentOptions）
