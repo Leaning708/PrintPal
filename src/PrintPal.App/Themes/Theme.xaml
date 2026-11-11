@@ -5,6 +5,8 @@
     <SolidColorBrush x:Key="AccentBrush" Color="#2563EB" />
     <SolidColorBrush x:Key="AccentDarkBrush" Color="#1D4ED8" />
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#EAF1FF" />
+    <!-- 主按钮文字：按 Accent 对比度自动选白/黑（自定义主题用，内置主题在 ThemeManager 里算） -->
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PageBackgroundBrush" Color="#F3F6FB" />
     <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="LineBrush" Color="#E6EBF3" />
@@ -174,6 +176,12 @@
         <Setter Property="Padding" Value="12" />
     </Style>
 
+    <!-- 统计指标卡：主题浅色底，让 6 个数字块从白卡里浮出来（随主题变化） -->
+    <Style x:Key="MetricCard" TargetType="Border" BasedOn="{StaticResource InsetCard}">
+        <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource InsetBorderBrush}" />
+    </Style>
+
     <Style TargetType="Border" x:Key="Divider">
         <Setter Property="Background" Value="{DynamicResource LineBrush}" />
         <Setter Property="Height" Value="1" />
@@ -234,7 +242,7 @@
 
     <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     </Style>
 
@@ -254,6 +262,27 @@
         <Setter Property="Background" Value="{DynamicResource SubtleButtonBackgroundBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource InkSecondaryBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}" />
+    </Style>
+
+    <!-- 浅强调按钮：统计页导出这类"页面唯一动作"，比次要按钮稍突出，但不用实心主色 -->
+    <Style x:Key="AccentSoftButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentDarkBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+
+    <!-- 次要按钮：白卡底 + 强边框，比灰底更干净，且随主题（Card/Line/Accent）走 -->
+    <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource InkSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource LineStrongBrush}" />
+    </Style>
+
+    <!-- 极简模式（深色卡片）内的次要按钮 -->
+    <Style x:Key="MinimalSecondaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Background" Value="{DynamicResource MinimalButtonBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource MinimalButtonForegroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource MinimalChipBorderBrush}" />
     </Style>
 
     <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">

@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using PrintPal.Agent;
 using PrintPal.App.Themes;
 using PrintPal.Core;
+using PrintPal.Core.Theming;
 using PrintPal.Ipp;
 using PrintPal.Storage;
 using WinForms = System.Windows.Forms;
@@ -68,6 +69,7 @@ public partial class MainWindow : Window
     private bool _suppressHistorySelection;
 
     private WinForms.NotifyIcon? _trayIcon;
+    private WinForms.ContextMenuStrip? _trayMenu;
     private bool _initialized;
     private bool _reloading;
     private bool _balloonShown;
@@ -93,7 +95,9 @@ public partial class MainWindow : Window
 
     // 主题
     private readonly List<Button> _themeButtons = new();
+    private readonly List<Button> _customThemeButtons = new();
     private string _themeKey = ThemeManager.DefaultKey;
+    private ThemeLibrary _themeLibrary = ThemeLibrary.CreateDefault();
 
     // 界面字体（null = 默认 Microsoft YaHei UI）
     private string? _uiFontFamily;
@@ -270,9 +274,45 @@ public partial class MainWindow : Window
 
             // 主题：先应用再 Reload，避免首帧闪一下默认配色
             _themeKey = await _agent.Database.GetSettingAsync("uiTheme") ?? ThemeManager.DefaultKey;
-            Console.WriteLine($"THEME setting loaded: [{_themeKey}]");
-            ThemeManager.Apply(ThemeManager.Find(_themeKey));
+            var savedLibrary = await _agent.Database.GetSettingAsync("uiCustomThemes");
+            _themeLibrary = ThemeLibrary.FromJson(savedLibrary);
+
+            // 旧版只有一条 uiThemeCustom：仅在"从未写过主题库"时迁移一次，
+            // 迁移后清掉旧键，避免用户删光自定义主题后下次启动又被迁移回来。
+            var needsLibrarySave = false;
+            if (string.IsNullOrWhiteSpace(savedLibrary))
+            {
+                var legacy = ThemeCustomization.FromJson(
+                    await _agent.Database.GetSettingAsync("uiThemeCustom"));
+                if (legacy is not null)
+                {
+                    _themeLibrary = ThemeLibrary.FromLegacy(legacy);
+                    needsLibrarySave = true;
+                }
+            }
+
+            Console.WriteLine($"THEME setting loaded: [{_themeKey}], custom themes: {_themeLibrary.Themes.Count}");
+            var selectedCustom = string.Equals(_themeKey, ThemeManager.CustomKey, StringComparison.OrdinalIgnoreCase)
+                ? _themeLibrary.Find(_themeLibrary.SelectedId)
+                : null;
+
+            if (selectedCustom is not null)
+            {
+                ThemeManager.Apply(ThemeManager.BuildCustom(selectedCustom));
+            }
+            else
+            {
+                _themeKey = ThemeManager.Find(_themeKey).Key;
+                ThemeManager.Apply(ThemeManager.Find(_themeKey));
+            }
+
             BuildThemeButtons();
+
+            if (needsLibrarySave)
+            {
+                await SaveSettingAsync("uiCustomThemes", _themeLibrary.ToJson());
+                await SaveSettingAsync("uiThemeCustom", string.Empty);
+            }
 
             // 界面字体：默认微软雅黑 UI，用户可在设置页切换
             _uiFontFamily = await _agent.Database.GetSettingAsync("uiFontFamily");
@@ -403,8 +443,12 @@ public partial class MainWindow : Window
             }
         }));
 
+        _trayMenu = menu;
         _trayIcon.ContextMenuStrip = menu;
         _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
+
+        // 托盘菜单颜色跟随当前主题（此前是固定浅色）
+        RefreshTrayMenuColors();
     }
 
     private WinForms.ToolStripMenuItem CreateTrayItem(string text, Action action, bool bold = false)
@@ -3226,7 +3270,73 @@ public partial class MainWindow : Window
             _themeButtons.Add(button);
         }
 
+        BuildCustomThemeButtons();
         UpdateThemeButtons();
+    }
+
+    private void BuildCustomThemeButtons()
+    {
+        if (CustomThemeButtonsPanel is null)
+        {
+            return;
+        }
+
+        CustomThemeButtonsPanel.Children.Clear();
+        _customThemeButtons.Clear();
+
+        foreach (var theme in _themeLibrary.Themes)
+        {
+            var accent = ThemeManager.BuildCustom(theme).Colors.TryGetValue("AccentBrush", out var color)
+                ? color
+                : Colors.Black;
+
+            var swatch = new Border
+            {
+                Width = 14,
+                Height = 14,
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(accent),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var label = new TextBlock
+            {
+                Text = theme.Name,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var content = new StackPanel { Orientation = Orientation.Horizontal };
+            content.Children.Add(swatch);
+            content.Children.Add(label);
+
+            var button = new Button
+            {
+                Content = content,
+                Tag = theme.Id,
+                Margin = new Thickness(0, 0, 8, 8),
+                Padding = new Thickness(10, 6, 12, 6),
+                ToolTip = $"切换到「{theme.Name}」（右键可编辑/删除）",
+            };
+            button.Click += CustomTheme_Click;
+
+            var menu = new ContextMenu();
+            var editItem = new MenuItem { Header = "编辑此主题…" };
+            editItem.Click += (_, _) => EditCustomTheme(theme.Id);
+            var deleteItem = new MenuItem
+            {
+                Header = "删除此主题…",
+                Foreground = (System.Windows.Media.Brush)FindResource("DangerBrush"),
+            };
+            deleteItem.Click += (_, _) => DeleteCustomTheme(theme.Id);
+            menu.Items.Add(editItem);
+            menu.Items.Add(deleteItem);
+            button.ContextMenu = menu;
+
+            CustomThemeButtonsPanel.Children.Add(button);
+            _customThemeButtons.Add(button);
+        }
+
+        // “＋”跟在一排自定义主题后面，超长自动换行
+        CustomThemeButtonsPanel.Children.Add(NewCustomThemeButton);
     }
 
     private void UpdateThemeButtons()
@@ -3238,6 +3348,62 @@ public partial class MainWindow : Window
             button.BorderThickness = new Thickness(selected ? 1.5 : 1);
             button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
         }
+
+        var customSelected = string.Equals(_themeKey, ThemeManager.CustomKey, StringComparison.OrdinalIgnoreCase);
+        foreach (var button in _customThemeButtons)
+        {
+            var selected = customSelected &&
+                           string.Equals(button.Tag as string, _themeLibrary.SelectedId,
+                               StringComparison.OrdinalIgnoreCase);
+            button.BorderBrush = (System.Windows.Media.Brush)FindResource(selected ? "AccentBrush" : "LineStrongBrush");
+            button.BorderThickness = new Thickness(selected ? 1.5 : 1);
+            button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+        }
+    }
+
+    /// <summary>完整/极简模式的窗口背景分别来自 SidebarBrush / MinimalBackgroundBrush，切主题后同步。</summary>
+    private void ApplyThemeBackground()
+    {
+        if (_mode == UiMode.Full)
+        {
+            Background = (System.Windows.Media.Brush)FindResource("SidebarBrush");
+        }
+        else if (_mode == UiMode.Minimal)
+        {
+            Background = (System.Windows.Media.Brush)FindResource("MinimalBackgroundBrush");
+        }
+    }
+
+    private void RefreshTrayMenuColors()
+    {
+        TrayMenuRenderer.RefreshColors();
+
+        if (_trayMenu is null)
+        {
+            return;
+        }
+
+        _trayMenu.BackColor = TrayMenuRenderer.Surface;
+        _trayMenu.ForeColor = TrayMenuRenderer.TextColor;
+
+        foreach (WinForms.ToolStripItem item in _trayMenu.Items)
+        {
+            item.BackColor = TrayMenuRenderer.Surface;
+            item.ForeColor = TrayMenuRenderer.TextColor;
+        }
+
+        _trayMenu.Invalidate(true);
+    }
+
+    /// <summary>应用某个主题定义并同步所有跟随主题的界面元素。</summary>
+    private void ApplyThemeDefinition(ThemeDefinition definition, string key)
+    {
+        _themeKey = key;
+        ThemeManager.Apply(definition);
+        UpdateThemeButtons();
+        UpdateModeSwitchButtons();
+        ApplyThemeBackground();
+        RefreshTrayMenuColors();
     }
 
     private async void Theme_Click(object sender, RoutedEventArgs e)
@@ -3247,22 +3413,158 @@ public partial class MainWindow : Window
             return;
         }
 
-        _themeKey = key;
-        ThemeManager.Apply(ThemeManager.Find(key));
-        UpdateThemeButtons();
-        UpdateModeSwitchButtons();
-
-        // 完整模式窗口背景用的是 SidebarBrush，主题切换后同步刷新
-        if (_mode == UiMode.Full)
-        {
-            Background = (System.Windows.Media.Brush)FindResource("SidebarBrush");
-        }
-        else if (_mode == UiMode.Minimal)
-        {
-            Background = (System.Windows.Media.Brush)FindResource("MinimalBackgroundBrush");
-        }
+        ApplyThemeDefinition(ThemeManager.Find(key), key);
 
         await SaveSettingAsync("uiTheme", key);
+    }
+
+    private async void CustomTheme_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string id } || _themeLibrary.Find(id) is not { } theme)
+        {
+            return;
+        }
+
+        ApplyThemeDefinition(ThemeManager.BuildCustom(theme), ThemeManager.CustomKey);
+        _themeLibrary.Select(id);
+        UpdateThemeButtons();
+
+        await SaveSettingAsync("uiTheme", ThemeManager.CustomKey);
+        await SaveSettingAsync("uiCustomThemes", _themeLibrary.ToJson());
+    }
+
+    /// <summary>当前生效主题的 ThemeDefinition（用于编辑时的「还原」）。</summary>
+    private ThemeDefinition CurrentThemeDefinition() =>
+        string.Equals(_themeKey, ThemeManager.CustomKey, StringComparison.OrdinalIgnoreCase) &&
+        _themeLibrary.Find(_themeLibrary.SelectedId) is { } selected
+            ? ThemeManager.BuildCustom(selected)
+            : ThemeManager.Find(_themeKey);
+
+    /// <summary>新主题的种子：当前是自定义主题就克隆它，否则取当前预设的明暗与主色。</summary>
+    private ThemeCustomization SeedCustomizationFromCurrent()
+    {
+        if (string.Equals(_themeKey, ThemeManager.CustomKey, StringComparison.OrdinalIgnoreCase) &&
+            _themeLibrary.Find(_themeLibrary.SelectedId) is { } selected)
+        {
+            return new ThemeCustomization
+            {
+                IsDark = selected.IsDark,
+                Accent = selected.Accent,
+                PageStyle = selected.PageStyle,
+                PageColor = selected.PageColor,
+                SidebarStyle = selected.SidebarStyle,
+                Overrides = selected.Overrides is null
+                    ? null
+                    : new Dictionary<string, string>(selected.Overrides, StringComparer.OrdinalIgnoreCase),
+            }.Normalized();
+        }
+
+        var current = ThemeManager.Find(_themeKey);
+        var accent = current.Colors.TryGetValue("AccentBrush", out var color)
+            ? $"#{color.R:X2}{color.G:X2}{color.B:X2}"
+            : ThemeCustomization.CreateDefault(current.IsDark).Accent;
+
+        return new ThemeCustomization
+        {
+            IsDark = current.IsDark,
+            Accent = accent,
+        }.Normalized();
+    }
+
+    private async void NewCustomTheme_Click(object sender, RoutedEventArgs e)
+    {
+        var previous = CurrentThemeDefinition();
+        var seed = SeedCustomizationFromCurrent();
+        var dialog = new CustomThemeWindow(seed, previous, isNew: true, defaultName: _themeLibrary.NextDefaultName())
+        {
+            Owner = this,
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var id = _themeLibrary.Add(dialog.Customization, dialog.Customization.Name);
+        ApplyThemeDefinition(ThemeManager.BuildCustom(_themeLibrary.Find(id)!), ThemeManager.CustomKey);
+        BuildCustomThemeButtons();
+        UpdateThemeButtons();
+
+        await SaveSettingAsync("uiTheme", ThemeManager.CustomKey);
+        await SaveSettingAsync("uiCustomThemes", _themeLibrary.ToJson());
+    }
+
+    private async void EditCustomTheme(string id)
+    {
+        if (_themeLibrary.Find(id) is not { } theme)
+        {
+            return;
+        }
+
+        var previous = CurrentThemeDefinition();
+        var dialog = new CustomThemeWindow(theme, previous, isNew: false) { Owner = this };
+        if (dialog.ShowDialog() != true)
+        {
+            if (dialog.DeleteRequested)
+            {
+                DeleteCustomTheme(id, skipConfirm: true);
+            }
+
+            return;
+        }
+
+        _themeLibrary.Update(dialog.Customization);
+        ApplyThemeDefinition(ThemeManager.BuildCustom(dialog.Customization), ThemeManager.CustomKey);
+        BuildCustomThemeButtons();
+        UpdateThemeButtons();
+
+        await SaveSettingAsync("uiTheme", ThemeManager.CustomKey);
+        await SaveSettingAsync("uiCustomThemes", _themeLibrary.ToJson());
+    }
+
+    private async void DeleteCustomTheme(string id, bool skipConfirm = false)
+    {
+        if (_themeLibrary.Find(id) is not { } theme)
+        {
+            return;
+        }
+
+        if (!skipConfirm)
+        {
+            var confirm = MessageBox.Show($"删除自定义主题「{theme.Name}」？此操作不可撤销。", "删除主题",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
+        var wasSelected = string.Equals(_themeKey, ThemeManager.CustomKey, StringComparison.OrdinalIgnoreCase) &&
+                          string.Equals(_themeLibrary.SelectedId, id, StringComparison.OrdinalIgnoreCase);
+        _themeLibrary.Remove(id);
+
+        if (wasSelected)
+        {
+            if (_themeLibrary.Find(_themeLibrary.SelectedId) is { } fallback)
+            {
+                ApplyThemeDefinition(ThemeManager.BuildCustom(fallback), ThemeManager.CustomKey);
+                await SaveSettingAsync("uiTheme", ThemeManager.CustomKey);
+            }
+            else
+            {
+                ApplyThemeDefinition(ThemeManager.Find(ThemeManager.DefaultKey), ThemeManager.DefaultKey);
+                await SaveSettingAsync("uiTheme", ThemeManager.DefaultKey);
+            }
+        }
+        else
+        {
+            // 编辑对话框预览过该主题；删掉后重新应用当前生效主题，避免残留预览。
+            ApplyThemeDefinition(CurrentThemeDefinition(), _themeKey);
+        }
+
+        BuildCustomThemeButtons();
+        UpdateThemeButtons();
+        await SaveSettingAsync("uiCustomThemes", _themeLibrary.ToJson());
     }
 
     // ------------------------------------------------------------------ ui font
@@ -4401,12 +4703,33 @@ internal sealed class TrayMenuRenderer : WinForms.ToolStripRenderer
 {
     private const int TextPaddingLeft = 14;
 
-    internal static readonly System.Drawing.Color Surface = System.Drawing.Color.White;
-    internal static readonly System.Drawing.Color Hover = System.Drawing.Color.FromArgb(0xEA, 0xF1, 0xFF);
-    internal static readonly System.Drawing.Color Border = System.Drawing.Color.FromArgb(0xE6, 0xEB, 0xF3);
-    internal static readonly System.Drawing.Color TextColor = System.Drawing.Color.FromArgb(0x33, 0x41, 0x55);
-    internal static readonly System.Drawing.Color Accent = System.Drawing.Color.FromArgb(0x1D, 0x4E, 0xD8);
-    internal static readonly System.Drawing.Color Disabled = System.Drawing.Color.FromArgb(0x94, 0xA3, 0xB8);
+    internal static System.Drawing.Color Surface { get; private set; } = System.Drawing.Color.White;
+    internal static System.Drawing.Color Hover { get; private set; } = System.Drawing.Color.FromArgb(0xEA, 0xF1, 0xFF);
+    internal static System.Drawing.Color Border { get; private set; } = System.Drawing.Color.FromArgb(0xE6, 0xEB, 0xF3);
+    internal static System.Drawing.Color TextColor { get; private set; } = System.Drawing.Color.FromArgb(0x33, 0x41, 0x55);
+    internal static System.Drawing.Color Accent { get; private set; } = System.Drawing.Color.FromArgb(0x1D, 0x4E, 0xD8);
+    internal static System.Drawing.Color Disabled { get; private set; } = System.Drawing.Color.FromArgb(0x94, 0xA3, 0xB8);
+
+    /// <summary>从当前主题 token 刷新托盘菜单配色（切主题/自定义主题后调用）。</summary>
+    internal static void RefreshColors()
+    {
+        Surface = FromToken("CardBrush", Surface);
+        Hover = FromToken("AccentSoftBrush", Hover);
+        Border = FromToken("LineBrush", Border);
+        TextColor = FromToken("InkSecondaryBrush", TextColor);
+        Accent = FromToken("AccentBrush", Accent);
+        Disabled = FromToken("SoftMutedBrush", Disabled);
+    }
+
+    private static System.Drawing.Color FromToken(string key, System.Drawing.Color fallback)
+    {
+        if (Application.Current?.TryFindResource(key) is SolidColorBrush brush)
+        {
+            return System.Drawing.Color.FromArgb(brush.Color.R, brush.Color.G, brush.Color.B);
+        }
+
+        return fallback;
+    }
 
     protected override void OnRenderToolStripBackground(WinForms.ToolStripRenderEventArgs e)
     {

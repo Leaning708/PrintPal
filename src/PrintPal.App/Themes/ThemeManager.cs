@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using PrintPal.Core.Theming;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 
@@ -18,6 +19,25 @@ public sealed record ThemeDefinition(string Key, string Name, bool IsDark, IRead
 public static class ThemeManager
 {
     public const string DefaultKey = "blue";
+
+    /// <summary>自定义配色的设置键（uiTheme 里存这个值，具体参数在 uiThemeCustom）。</summary>
+    public const string CustomKey = "custom";
+
+    /// <summary>由种子色派生出一套完整主题（方案 A）。</summary>
+    public static ThemeDefinition BuildCustom(ThemeCustomization customization)
+    {
+        ArgumentNullException.ThrowIfNull(customization);
+
+        var normalized = customization.Normalized();
+        var palette = ThemePaletteBuilder.Build(normalized);
+        var colors = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (token, hex) in palette)
+        {
+            colors[token] = Hex(hex);
+        }
+
+        return new ThemeDefinition(CustomKey, normalized.Name, normalized.IsDark, colors);
+    }
 
     private static readonly Dictionary<string, string> LightBase = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -328,6 +348,25 @@ public static class ThemeManager
         colors["ScrollThumbHoverBrush"] = Blend(colors["CardBrush"], colors["MutedBrush"], 0.65);
         colors["ScrollThumbPressedBrush"] = Blend(colors["CardBrush"], colors["MutedBrush"], 0.85);
 
+        // 中性面同样跟着主题派生：彩色主题里不再出现固定冷灰块（指标卡/次要按钮/chip）。
+        colors["InsetBackgroundBrush"] = Blend(colors["PageBackgroundBrush"], colors["AccentSoftBrush"], 0.55);
+        colors["InsetBorderBrush"] = Blend(colors["LineBrush"], colors["AccentBrush"], 0.15);
+        colors["SubtleButtonBackgroundBrush"] = Blend(colors["PageBackgroundBrush"], colors["LineBrush"], 0.45);
+        colors["ChartToggleBackgroundBrush"] = colors["SubtleButtonBackgroundBrush"];
+        colors["PillNeutralBackgroundBrush"] = Blend(colors["PageBackgroundBrush"], colors["AccentSoftBrush"], 0.30);
+        colors["PillNeutralTextBrush"] = Blend(colors["InkSecondaryBrush"], colors["AccentBrush"], 0.25);
+
+        // 极简模式（深色卡片）内的 chip/按钮跟随 MinimalTopBar，避免纯灰。
+        colors["MinimalChipBrush"] = Blend(colors["MinimalBackgroundBrush"], colors["MinimalTopBarBrush"], 0.14);
+        colors["MinimalChipBorderBrush"] = Blend(colors["MinimalBackgroundBrush"], colors["MinimalTopBarBrush"], 0.24);
+        colors["MinimalButtonBackgroundBrush"] = Blend(colors["MinimalBackgroundBrush"], colors["MinimalTopBarBrush"], 0.16);
+
+        // 主按钮文字：白/黑里选对比度更高的一个（深色主题里浅色主色不再出现"白字看不清"）
+        colors["AccentForegroundBrush"] = ContrastRatio(colors["AccentBrush"], Colors.White) >=
+                                          ContrastRatio(colors["AccentBrush"], Colors.Black)
+            ? Colors.White
+            : Colors.Black;
+
         return new ThemeDefinition(key, name, isDark, colors);
     }
 
@@ -382,4 +421,20 @@ public static class ThemeManager
     {
         return (Color)ColorConverter.ConvertFromString(value);
     }
-}
+    private static double ContrastRatio(Color a, Color b)
+    {
+        static double Luminance(Color c)
+        {
+            static double Channel(byte v)
+            {
+                var s = v / 255.0;
+                return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4);
+            }
+
+            return 0.2126 * Channel(c.R) + 0.7152 * Channel(c.G) + 0.0722 * Channel(c.B);
+        }
+
+        var la = Luminance(a);
+        var lb = Luminance(b);
+        return (Math.Max(la, lb) + 0.05) / (Math.Min(la, lb) + 0.05);
+    }}
