@@ -8,24 +8,39 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
         Icon="pack://application:,,,/Assets/PrintPal.ico">
-    <Grid Margin="24,20,24,20">
+    <Border Margin="12"
+            Background="{DynamicResource PageBackgroundBrush}"
+            BorderBrush="{DynamicResource LineBrush}"
+            BorderThickness="1"
+            CornerRadius="14"
+            Effect="{StaticResource PopupShadow}">
+    <Grid Margin="22,16,22,18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="2,0,0,14">
-            <TextBlock Text="移到其他账单" Style="{StaticResource PageTitle}" />
-            <TextBlock x:Name="DocumentText"
-                       Style="{StaticResource PageSubtitle}"
-                       TextTrimming="CharacterEllipsis" />
-        </StackPanel>
+        <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+            <StackPanel Margin="2,0,36,14">
+                <TextBlock Text="移到其他账单" Style="{StaticResource PageTitle}" />
+                <TextBlock x:Name="DocumentText"
+                           Style="{StaticResource PageSubtitle}"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Style="{StaticResource IconButton}"
+                    Width="28" Height="28" FontSize="10"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Content="&#xE8BB;" ToolTip="关闭" Click="Cancel_Click" />
+        </Grid>
 
         <Border Grid.Row="1" Style="{StaticResource FlatCardBorder}" Padding="10">
             <ListBox x:Name="ChoiceList" BorderThickness="0" Background="Transparent">
@@ -54,4 +69,5 @@
             <Button Content="移动" Style="{StaticResource PrimaryButton}" IsDefault="True" Margin="0" Click="Move_Click" />
         </StackPanel>
     </Grid>
+    </Border>
 </Window>

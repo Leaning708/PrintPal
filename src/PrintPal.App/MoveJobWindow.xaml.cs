@@ -30,6 +30,16 @@ public partial class MoveJobWindow : Window
 
     public bool CreateNew => ChoiceList.SelectedItem is MoveJobChoice { IsNew: true };
 
+    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
+    }
+
     private void Move_Click(object sender, RoutedEventArgs e)
     {
         if (ChoiceList.SelectedItem is not MoveJobChoice choice || choice.IsCurrent)
