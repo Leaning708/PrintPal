@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
   PrintPal 安装向导（中文，自绘 UI）
 
@@ -180,7 +180,8 @@
         <Control Id="ProductIcon" Type="Icon" X="20" Y="14" Width="32" Height="32" Text="PrintPalProductIcon" FixedSize="yes" IconSize="32" />
         <Control Id="Header" Type="Text" X="62" Y="20" Width="288" Height="20" Transparent="yes" NoPrefix="yes" Text="卸载 PrintPal" />
         <Control Id="Description" Type="Text" X="20" Y="60" Width="330" Height="30" NoPrefix="yes" Text="确定要卸载 PrintPal [ProductVersion] 吗？" />
-        <Control Id="Detail" Type="Text" X="20" Y="100" Width="330" Height="60" NoPrefix="yes" Text="将删除程序文件、Windows 服务 PrintPal.Service 和打印队列“PrintPal Virtual Printer”。C:\ProgramData\PrintPal 中的数据会保留。" />
+        <Control Id="Detail" Type="Text" X="20" Y="100" Width="330" Height="60" NoPrefix="yes" Text="将删除程序文件、Windows 服务 PrintPal.Service 和打印队列“PrintPal Virtual Printer”。默认保留 C:\ProgramData\PrintPal 中的数据。" />
+        <Control Id="RemoveData" Type="CheckBox" X="20" Y="152" Width="330" Height="18" Property="PRINTPAL_REMOVEDATA" CheckBoxValue="1" Text="同时删除用户数据（C:\ProgramData\PrintPal，无法恢复）" />
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="373" Height="0" />
         <Control Id="Remove" Type="PushButton" X="20" Y="243" Width="80" Height="17" Default="yes" Text="卸载">
           <Publish Property="PRINTPAL_ACTION" Value="Remove" Order="1" />

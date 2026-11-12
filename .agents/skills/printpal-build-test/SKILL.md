@@ -79,7 +79,9 @@ dotnet test PrintPal.sln -c Debug
 - 日常 `Debug` / `Release` **不构建 MSI**，不会拖慢构建或测试；
 - 只有 `-c Installer`（专用解决方案配置）或直接构建
   `packaging\PrintPal.Msi\PrintPal.Msi.wixproj` 才会出 MSI —— 见 `printpal-msi` skill；
-- 版本号只在 `Directory.Build.props` 的 `PrintPalVersion` 维护。
+- 版本号保持 `x.y.z`（无 `-dev` 后缀）；开发周期由 `Package.wxs` 的
+  `AllowSameVersionUpgrades="yes"` 标记，开始/归档用 `scripts\dev\Start-DevCycle.ps1` /
+  `Archive-DevCycle.ps1`（见 `printpal-msi` skill）。
 
 ## 坑
 

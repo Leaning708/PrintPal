@@ -89,6 +89,17 @@ dotnet test PrintPal.sln -c Debug
 - 测试通过后**不要**顺手把 App、服务或 FakePrinter 关掉（见第 1 节）；
 - 逻辑改动按项目补/改 `tests\` 下的测试（Core / Ipp / Capture / Storage / Integration）。
 
+### 版本号约定（2026-11-12 起）
+
+- `Directory.Build.props` 的 `PrintPalVersion` 就是当前版本，格式 `x.y.z`，不再带 `-dev` 后缀；
+- **开发周期的标志是 `Package.wxs` 里的 `AllowSameVersionUpgrades="yes"`**：有它时同一个
+  `x.y.z` 的 MSI 可以反复覆盖安装/重装，调试方便；没有它表示上一次提交已经归档；
+- 开始新一轮开发：运行 `.\scripts\dev\Start-DevCycle.ps1`。如果发现开关未开启（上次提交已归档），
+  它会把第三位版本号 +1 并打开开关；`Build-Installer.cmd` 已自动调用它；
+- **提交/归档前**：运行 `.\scripts\dev\Archive-DevCycle.ps1` 移除开关，版本号保持不变并提交；
+  归档后的 MSI 不再允许同版本覆盖安装（正常升级仍需更高版本号）；
+- 正式发布时版本号沿用当前 `x.y.z`，发布后再在下一次 `Start-DevCycle` 时自动 +1。
+
 ## 4. 证据、日志与截图
 
 - 截图、导出、临时证据统一放 `artifacts\`（已 gitignore，例如 `artifacts\app-testdata.png`）；

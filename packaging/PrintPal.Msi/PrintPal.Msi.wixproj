@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <PrintPalVersion Condition="'$(PrintPalVersion)' == ''">1.0.1</PrintPalVersion>
+
     <OutputName>PrintPal-$(PrintPalVersion)-x64</OutputName>
     <OutputType>Package</OutputType>
     <InstallerPlatform>x64</InstallerPlatform>

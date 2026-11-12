@@ -1,10 +1,18 @@
 @echo off
 setlocal
-rem One-click installer build. Delegates to the tested publish script, which
-rem publishes app + service, stages the installer scripts and builds the MSI.
+rem One-click installer build. Starts/continues a development cycle (bumps the
+rem patch version and enables AllowSameVersionUpgrades on the first build after
+rem an archived commit), then delegates to the tested publish script.
 rem Extra arguments are forwarded, e.g.  Build-Installer.cmd -Zip
 echo Building PrintPal installer ...
 echo.
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\dev\Start-DevCycle.ps1"
+if errorlevel 1 (
+  echo [FAILED] could not start the development cycle.
+  pause
+  exit /b 1
+)
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\publish\Publish-PrintPal.ps1" %*
 set "rc=%ERRORLEVEL%"

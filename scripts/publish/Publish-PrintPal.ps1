@@ -1,4 +1,4 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
 .SYNOPSIS
     Publishes a self-contained PrintPal package (win-x64) for P5/P6.
@@ -26,6 +26,16 @@ $serviceProject = Join-Path $Root 'src\PrintPal.Service\PrintPal.Service.csproj'
 $fakeProject = Join-Path $Root 'src\PrintPal.FakePrinter\PrintPal.FakePrinter.csproj'
 $msiProject = Join-Path $Root 'packaging\PrintPal.Msi\PrintPal.Msi.wixproj'
 
+# 开发/归档状态提示：Package.wxs 里有 AllowSameVersionUpgrades=yes 表示当前是开发周期；
+# 没有则说明上次提交已归档，直接构建 MSI 只能“升级安装”，同版本重装会失败。
+$packagePath = Join-Path $Root 'packaging\PrintPal.Msi\Package.wxs'
+if (Test-Path $packagePath) {
+    $packageText = [System.IO.File]::ReadAllText($packagePath, [System.Text.Encoding]::UTF8)
+    if ($packageText -notmatch 'AllowSameVersionUpgrades\s*=\s*"yes"') {
+        Write-Warning 'Package.wxs is in archive mode (no AllowSameVersionUpgrades). Run scripts\dev\Start-DevCycle.ps1 for a development build.'
+    }
+}
+
 if (-not $Version) {
     [xml] $versionProps = Get-Content (Join-Path $Root 'Directory.Build.props') -Raw
     $versionNode = $versionProps.Project.PropertyGroup |
@@ -39,6 +49,12 @@ if (-not $Version) { $Version = '1.0.1' }
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "Version must be major.minor.build, got '$Version'."
 }
+
+# 版本号约定：
+# - Directory.Build.props 的 PrintPalVersion 是当前开发/发布版本，格式 x.y.z；
+# - 开发阶段 Package.wxs 带 AllowSameVersionUpgrades，同版本 MSI 可以互相覆盖安装；
+# - 每次新一轮开发由 scripts\dev\Start-DevCycle.ps1 把第三位 +1 并打开该开关；
+# - 提交/归档前用 scripts\dev\Archive-DevCycle.ps1 关掉开关。
 $version = $Version
 
 if (-not $Output) {
@@ -68,6 +84,7 @@ $commonArgs = @(
     '-p:DebugType=None',
     '-p:DebugSymbols=false',
     "-p:PrintPalVersion=$version",
+    "-p:InformationalVersion=$version",
     '--nologo'
 )
 

@@ -1,4 +1,4 @@
-﻿---
+---
 name: printpal-msi
 description: 构建 PrintPal 发布包与 MSI，安装/升级/修复/卸载并重建 IPP 队列，只读核对部署状态、已装版本与队列绑定。
 whenToUse: 需要出 MSI/zip 包、在本机安装/升级/修复/卸载、重建虚拟打印机队列，或核对已安装版本、服务状态、队列绑定时使用。
@@ -28,21 +28,28 @@ App/Service/FakePrinter 进程、`/health`、数据目录与数据库大小，�
 ## 构建
 
 ```powershell
-# 发布 app+service、构建 MSI、打 zip（一条命令）
+# 开发阶段首选：自动开始/继续开发周期，再发布 + 构建 MSI + 打 zip
+.\Build-Installer.cmd -Zip
+
+# 直接发布（开发/发布都可用；归档状态下会提示先跑 Start-DevCycle）
 .\scripts\publish\Publish-PrintPal.ps1 -NoFakePrinter -Zip
 
 # 只发布，不出 MSI
 .\scripts\publish\Publish-PrintPal.ps1 -NoFakePrinter -NoMsi
 
-# 指定版本（版本唯一来源是 Directory.Build.props 的 PrintPalVersion）
-.\scripts\publish\Publish-PrintPal.ps1 -Version 1.0.3 -NoFakePrinter -Zip
+# 明确指定版本号
+.\scripts\publish\Publish-PrintPal.ps1 -Version 1.0.6 -NoFakePrinter -Zip
 
 # 只构建 MSI（App/Service 已发布到 dist 时）
-dotnet build .\packaging\PrintPal.Msi\PrintPal.Msi.wixproj -c Release -p:PrintPalVersion=1.0.3
-.\Build-Installer.cmd
+dotnet build .\packaging\PrintPal.Msi\PrintPal.Msi.wixproj -c Release -p:PrintPalVersion=1.0.6
 ```
 
 产物：`dist\PrintPal-<version>-win-x64\PrintPal-<version>-x64.msi`（约 72.5 MB，未签名）与同名 zip。
+
+**版本约定（2026-11-12 起）**：版本号保持 `x.y.z`，不带 `-dev` 后缀；`Package.wxs` 里的
+`AllowSameVersionUpgrades="yes"` 表示**开发周期**（同版本 MSI 可反复覆盖安装）。开始新一轮开发用
+`scripts\dev\Start-DevCycle.ps1`：开关未开启（上次提交已归档）时会把第三位版本号 +1 并打开开关；
+提交/归档前用 `scripts\dev\Archive-DevCycle.ps1` 移除开关，版本号不变。
 日常 `Debug`/`Release` 配置不构建 MSI；`-c Installer` 才是专用配置。
 
 ## 安装 / 升级 / 修复 / 卸载

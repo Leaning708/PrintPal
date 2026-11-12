@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version 2.0
+Set-StrictMode -Version 2.0
 
 function Test-PrintPalAdmin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -460,6 +460,189 @@ function Write-PrintPalInstallLog {
         Add-Content -Path (Join-Path $dir 'install.log') -Value "[$(Get-Date -Format o)] $Message" -Encoding UTF8
     } catch {
         # Best effort.
+    }
+}
+
+function Stop-PrintPalService {
+    param(
+        [switch] $Delete,
+        [int] $TimeoutSeconds = 20
+    )
+
+    $service = Get-Service -Name 'PrintPal.Service' -ErrorAction SilentlyContinue
+    if (-not $service) {
+        if ($Delete) {
+            & sc.exe delete PrintPal.Service 2>$null | Out-Null
+        }
+        return
+    }
+
+    if ($service.Status -ne 'Stopped') {
+        try {
+            Stop-Service -Name 'PrintPal.Service' -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "Stop-Service failed: $($_.Exception.Message)"
+        }
+
+        $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+        while ((Get-Date) -lt $deadline) {
+            $service.Refresh()
+            if ($service.Status -eq 'Stopped') { break }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    if ($Delete) {
+        & sc.exe delete PrintPal.Service 2>$null | Out-Null
+        Start-Sleep -Milliseconds 800
+    }
+}
+
+function Get-PrintPalMsiProducts {
+    $products = New-Object System.Collections.ArrayList
+    $roots = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+
+    foreach ($root in $roots) {
+        if (-not (Test-Path $root)) { continue }
+        Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object {
+            # MSI 产品键名是 {GUID}；便携安装用的是 HKLM\...\Uninstall\PrintPal。
+            if ($_.PSChildName -notmatch '^\{[0-9A-Fa-f-]{36}\}$') { return }
+            $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+            if (-not $props) { return }
+            if ($props.DisplayName -notlike 'PrintPal*') { return }
+            if ($null -eq $props.WindowsInstaller -or [int]$props.WindowsInstaller -ne 1) { return }
+
+            [void]$products.Add([pscustomobject]@{
+                ProductCode    = $_.PSChildName
+                DisplayName    = $props.DisplayName
+                DisplayVersion = $props.DisplayVersion
+            })
+        }
+    }
+
+    return @($products)
+}
+
+function Uninstall-PrintPalMsiProducts {
+    param(
+        [switch] $Quiet,
+        [switch] $RemoveData
+    )
+
+    $products = @(Get-PrintPalMsiProducts)
+    foreach ($product in $products) {
+        $label = "$($product.DisplayName) $($product.DisplayVersion)"
+        if (-not $Quiet) { Write-Host "Uninstalling MSI product $label ..." }
+
+        $logDir = Join-Path $env:TEMP 'PrintPal-Uninstall'
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+        $log = Join-Path $logDir ("msi-uninstall-$($product.ProductCode.Trim('{','}')).log")
+
+        $msiArgs = @('/x', $product.ProductCode, '/qn', '/norestart', '/l*v', $log)
+        if ($RemoveData) {
+            # 卸载页勾选删除数据时，静默卸载也要把这个公共属性传进去。
+            $msiArgs += 'PRINTPAL_REMOVEDATA=1'
+        }
+
+        & msiexec.exe @msiArgs | Out-Null
+        $exitCode = $LASTEXITCODE
+        Write-PrintPalInstallLog "msiexec /x $($product.ProductCode) exit=$exitCode removeData=$([bool]$RemoveData) log=$log"
+        if ($exitCode -ne 0 -and $exitCode -ne 3010) {
+            Write-Warning "msiexec /x returned $exitCode; see $log"
+        }
+    }
+
+    return $products.Count
+}
+
+function Remove-PrintPalDataDirectories {
+    $common = [IO.Path]::GetFullPath($env:ProgramData).TrimEnd('\')
+    $local = [IO.Path]::GetFullPath($env:LOCALAPPDATA).TrimEnd('\')
+
+    foreach ($candidate in @(
+            (Join-Path $common 'PrintPal'),
+            (Join-Path $local 'PrintPal'))) {
+
+        $full = [IO.Path]::GetFullPath($candidate).TrimEnd('\')
+        if ((Split-Path $full -Leaf) -ne 'PrintPal') { continue }
+        if (-not ($full.StartsWith($common + '\', [StringComparison]::OrdinalIgnoreCase) -or
+                  $full.StartsWith($local + '\', [StringComparison]::OrdinalIgnoreCase))) {
+            continue
+        }
+
+        if (Test-Path $full) {
+            Write-PrintPalInstallLog "Removing data directory: $full"
+            if (-not (Remove-PrintPalInstallDirectory -InstallDir $full)) {
+                Write-Warning "Could not fully remove data directory: $full"
+            }
+        }
+    }
+}
+
+function Schedule-PrintPalRebootDelete {
+    param([Parameter(Mandatory = $true)][string] $Path)
+
+    if (-not ('PrintPal.NativeMethods' -as [type])) {
+        Add-Type -Namespace PrintPal -Name NativeMethods -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+public static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, int dwFlags);
+'@
+    }
+
+    # MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
+    [PrintPal.NativeMethods]::MoveFileEx($Path, $null, 4) | Out-Null
+}
+
+function Remove-PrintPalInstallDirectory {
+    param([Parameter(Mandatory = $true)][string] $InstallDir)
+
+    if (-not (Test-Path $InstallDir)) { return $true }
+
+    Get-ChildItem $InstallDir -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object {
+        try { $_.Attributes = [IO.FileAttributes]::Normal } catch { }
+    }
+
+    for ($attempt = 0; $attempt -lt 3; $attempt++) {
+        try {
+            Remove-Item $InstallDir -Recurse -Force -ErrorAction Stop
+            break
+        } catch {
+            Start-Sleep -Milliseconds 800
+        }
+    }
+
+    if (-not (Test-Path $InstallDir)) { return $true }
+
+    Write-Warning "Program files are still locked: $InstallDir"
+    Write-PrintPalInstallLog "Install directory still present after removal attempt; scheduling reboot delete: $InstallDir"
+    try {
+        Schedule-PrintPalRebootDelete -Path $InstallDir
+        Write-Warning 'Scheduled deletion of the install directory on next reboot.'
+    } catch {
+        Write-Warning "Could not schedule reboot deletion: $($_.Exception.Message)"
+    }
+
+    return $false
+}
+
+function Remove-PrintPalRunEntries {
+    # 清理所有已加载用户配置里的 HKCU\...\Run\PrintPal（便携安装器只写当前用户，
+    # MSI 卸载时则需要覆盖所有登录用户）。
+    $runSuffix = 'Software\Microsoft\Windows\CurrentVersion\Run'
+    foreach ($root in @('Registry::HKEY_CURRENT_USER', 'Registry::HKEY_USERS')) {
+        if ($root -eq 'Registry::HKEY_CURRENT_USER') {
+            $key = Join-Path $root $runSuffix
+            Remove-ItemProperty -Path $key -Name 'PrintPal' -ErrorAction SilentlyContinue
+            continue
+        }
+
+        Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = Join-Path $_.PSPath $runSuffix
+            Remove-ItemProperty -Path $key -Name 'PrintPal' -ErrorAction SilentlyContinue
+        }
     }
 }
 

@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-11-12 — 版本号约定：开发周期用 AllowSameVersionUpgrades 标记
+
+- 版本号保持 `x.y.z`，不再生成 `-dev.N` 后缀；
+- `Package.wxs` 里有 `AllowSameVersionUpgrades="yes"` 表示**处于开发周期**：同一个 `x.y.z` 的 MSI
+  可以反复覆盖安装/重装；没有该属性表示上次提交已归档；
+- 新增 `scripts\dev\Start-DevCycle.ps1`：开关未开启时（上次提交已归档）把第三位版本号 +1 并打开开关；
+  `Build-Installer.cmd` 已自动调用；
+- 新增 `scripts\dev\Archive-DevCycle.ps1`：提交/归档前移除开关，版本号保持不变；
+- `Publish-PrintPal.ps1` 恢复为纯 `x.y.z` 产物；归档状态下打包会提示先跑 Start-DevCycle；
+- 同步更新 `AGENTS.md`（版本号约定）、`docs/installer.md`、`printpal-msi` / `printpal-build-test` skill。
+## 2026-11-12 — 卸载可选删除用户数据（1.0.6）
+
+- MSI 卸载向导新增勾选项「同时删除用户数据（C:\ProgramData\PrintPal，无法恢复）」，
+  默认**不勾选**（保持原行为：数据保留）；
+- 静默卸载支持 `PRINTPAL_REMOVEDATA=1`（如
+  `msiexec /x PrintPal-1.0.6-x64.msi /qn PRINTPAL_REMOVEDATA=1`）；
+- 便携卸载器 `-RemoveData` 同时清理服务数据目录 `C:\ProgramData\PrintPal`
+  与便携数据目录 `%LOCALAPPDATA%\PrintPal`；
+- 删除前会校验路径必须是 ProgramData 下的 `PrintPal` 目录，避免误删；
+- 不再做旧数据库自动迁移：升级前如提示缺列，请手动删除 `C:\ProgramData\PrintPal` 后重装/启动。
+## 2026-11-12 — 修复卸载残留（1.0.4）
+
+- **现象**：MSI 安装后用 dist 里的便携 `Uninstall-PrintPal.cmd` 卸载，只有快捷方式被删，
+  `PrintPal.Service` 仍在运行、`C:\Program Files\PrintPal` 还在。
+- **原因**：便携卸载脚本只停 App、删队列/快捷方式/卸载项，随后直接删目录；`PrintPal.Service.exe`
+  正被服务占用，目录删除失败，脚本中止。
+- **修复（便携卸载器）**：先检测注册表里的 MSI 产品并执行 `msiexec /x`；随后兜底停/删
+  `PrintPal.Service`、删队列、清理所有已加载用户的 `HKCU\...\Run\PrintPal`；目录删除失败时重试，
+  仍失败则记录并安排重启后删除。
+- **修复（MSI）**：安装/升级前结束 `PrintPal.App`，卸载新增 deferred CA 兜底删服务/队列/自启；
+  清理日志写到 `C:\ProgramData\PrintPal\msi-uninstall.log`；卸载后约 10~20 秒目录消失属正常收尾。
+- **验证**：MSI 安装 → 启动 App 后卸载 → App/服务/队列/程序目录/自启全部清除，`C:\ProgramData\PrintPal`
+  数据保留；再装回 1.0.4 并启动 App 正常。
+- 版本号升到 **1.0.4**。
 ## 2026-11-12 — 弹窗去掉 Windows 原生标题栏
 
 - 打印机设置、价格编辑、移到其他账单、编辑账单、选择目标打印机 五个弹窗改为应用内自绘标题：

@@ -1,4 +1,4 @@
-﻿# PrintPal 安装、卸载与诊断（P5）
+# PrintPal 安装、卸载与诊断（P5）
 
 > 更新：2026-10-28
 > 适用：Windows 10 22H2+ / Windows 11 x64
@@ -28,17 +28,33 @@ dotnet build .\PrintPal.sln -c Installer   # 只构建 MSI 工程
 
 ```powershell
 # 安装（管理员）
-msiexec.exe /i .\dist\PrintPal-1.0.3-win-x64\PrintPal-1.0.3-x64.msi /qn /norestart
+msiexec.exe /i .\dist\PrintPal-1.0.6-win-x64\PrintPal-1.0.6-x64.msi /qn /norestart
 
 # 卸载
-msiexec.exe /x .\dist\PrintPal-1.0.3-win-x64\PrintPal-1.0.3-x64.msi /qn /norestart
+msiexec.exe /x .\dist\PrintPal-1.0.6-win-x64\PrintPal-1.0.6-x64.msi /qn /norestart
 
 # 修复
-msiexec.exe /f .\dist\PrintPal-1.0.3-win-x64\PrintPal-1.0.3-x64.msi /qn
+msiexec.exe /f .\dist\PrintPal-1.0.6-win-x64\PrintPal-1.0.6-x64.msi /qn
 ```
 
+**版本号约定（2026-11-12 起）**：版本号保持 `x.y.z`；`Package.wxs` 的
+`AllowSameVersionUpgrades="yes"` 表示开发周期（同版本 MSI 可反复重装），提交/归档前用
+`scripts\dev\Archive-DevCycle.ps1` 移除；开始新一轮开发时 `scripts\dev\Start-DevCycle.ps1`
+会在开关未开启时把第三位版本号 +1 并打开开关（`Build-Installer.cmd` 自动调用）。
 普通双击/不带 `/qn` 安装会显示**中文向导**：欢迎 → 许可 → 安装目录 → 确认 → 进度 → 完成；进度页显示“当前步骤”，失败页显示 MSI 日志路径并支持一键“打开日志”。
 升级直接安装更高版本 MSI（同 UpgradeCode）；已回归 0.6.0→1.0.1。队列安装失败时 MSI 回滚服务/程序/队列，数据保留。
+
+### 卸载注意（1.0.4 起）
+
+- **MSI 安装请用 `msiexec /x` 或「应用和功能」卸载**；程序目录、`PrintPal.Service`、打印队列、
+  各用户 `HKCU\...\Run\PrintPal` 自启、快捷方式都会清理，`C:\ProgramData\PrintPal` 数据保留。
+- 便携包里的 `Uninstall-PrintPal.cmd` 现在会**先检测并卸载已安装的 MSI 产品**，再兜底停服务、删队列、
+  清自启和程序目录——之前用错卸载方式（便携脚本卸 MSI 安装）也能把残留清干净。
+- **卸载时可勾选「同时删除用户数据（C:\ProgramData\PrintPal）」**：默认不勾选（保留数据）；
+  静默卸载用 `msiexec /x ... /qn PRINTPAL_REMOVEDATA=1`；便携卸载器用 `-RemoveData`
+  （同时清理 ProgramData 与 LocalAppData 下的 PrintPal 数据）。
+- 卸载后目录可能延迟 10~20 秒才消失（Windows Installer 收尾）；若仍有文件被占用，会写
+  `C:\ProgramData\PrintPal\msi-uninstall.log` 并安排重启后删除。
 
 | 项 | 路径/值 |
 |---|---|

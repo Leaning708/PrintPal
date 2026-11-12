@@ -8,6 +8,7 @@ Import-Module (Join-Path $PSScriptRoot 'PrintPal.Common.psm1') -Force -DisableNa
 
 try {
     Remove-PrintPalQueue -Name $Name
+    Write-PrintPalInstallLog "MSI queue removal completed for '$Name'."
 
     $startFolder = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\PrintPal'
     Remove-Item (Join-Path $startFolder 'PrintPal.lnk') -Force -ErrorAction SilentlyContinue
@@ -22,5 +23,6 @@ try {
     exit 0
 } catch {
     Write-Host "Queue removal warning: $($_.Exception.Message)"
+    Write-PrintPalInstallLog "MSI queue removal failed: $($_.Exception.Message)"
     exit 0
 }

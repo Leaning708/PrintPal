@@ -1,4 +1,4 @@
-﻿#requires -Version 5.1
+#requires -Version 5.1
 <#
 .SYNOPSIS
     Uninstalls PrintPal: stops the app, removes the queue, autostart, shortcuts,
@@ -47,36 +47,61 @@ function Write-Info([string] $message) {
 
 Write-Info "PrintPal uninstall started. InstallDir=$InstallDir"
 
+$exitCode = 0
+
+# 1) 如果是 MSI 安装：先走 MSI 自己的卸载（它会停服务、删服务、删队列、删程序文件）。
+#    过去这里直接 Remove-Item 目录，但服务还在跑 → 文件被占用，只剩快捷键被删。
+try {
+    $msiCount = Uninstall-PrintPalMsiProducts -Quiet:$Quiet -RemoveData:$RemoveData
+    if ($msiCount -gt 0) {
+        Write-Info "Uninstalled $msiCount MSI product(s)."
+    } else {
+        Write-Info 'No MSI product found; performing portable cleanup.'
+    }
+} catch {
+    Write-Warning "MSI uninstall failed: $($_.Exception.Message)"
+    $exitCode = 1
+}
+
+# 2) 兜底清理：无论 MSI 与否，都停 App、停并删除服务、删队列。
 Write-Info 'Stopping PrintPal.App ...'
 Stop-PrintPalApp
 
+Write-Info 'Stopping and deleting PrintPal.Service ...'
+Stop-PrintPalService -Delete
+
 Write-Info "Removing queue '$QueueName' ..."
-Remove-PrintPalQueue -Name $QueueName
+try {
+    Remove-PrintPalQueue -Name $QueueName
+} catch {
+    Write-Warning "Queue removal failed: $($_.Exception.Message)"
+    $exitCode = 1
+}
 
 Write-Info 'Removing autostart and shortcuts ...'
 Set-PrintPalAutostart -InstallDir $InstallDir -Disable
+Remove-PrintPalRunEntries
 Remove-PrintPalShortcuts
 Remove-PrintPalUninstallRegistry
 
+# 3) 删除程序目录（MSI 卸载后通常已不存在；便携安装或 MSI 卸载残留时兜底）。
 if (Test-Path $InstallDir) {
     Write-Info "Removing program files from $InstallDir ..."
-    Remove-Item $InstallDir -Recurse -Force
+    if (-not (Remove-PrintPalInstallDirectory -InstallDir $InstallDir)) {
+        $exitCode = 1
+    }
 }
 
 if ($RemoveData) {
-    $dataDir = Join-Path $env:LOCALAPPDATA 'PrintPal'
-    $fullData = [IO.Path]::GetFullPath($dataDir).TrimEnd('\')
-    if ($fullData -match '^[A-Za-z]:\\?$' -or (Split-Path $fullData -Leaf) -ne 'PrintPal') {
-        throw "Refusing to delete unexpected data directory: $fullData"
-    }
-
-    if (Test-Path $fullData) {
-        Write-Info "Removing user data at $fullData ..."
-        Remove-Item $fullData -Recurse -Force
-    }
+    Write-Info 'Removing data directories (ProgramData + LocalAppData) ...'
+    Remove-PrintPalDataDirectories
 }
 
-Write-Info 'Uninstall completed.'
+if ($exitCode -eq 0) {
+    Write-Info 'Uninstall completed.'
+} else {
+    Write-Info 'Uninstall completed with warnings (see above / install.log).'
+}
 if (-not $Quiet) {
     Write-Host ''
     Write-Host '=== PrintPal uninstalled ==='
