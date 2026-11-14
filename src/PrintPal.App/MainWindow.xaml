@@ -220,19 +220,19 @@
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding StatusText}" Value="已转发">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="在线">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="启用">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="转发中">
                     <Setter TargetName="Pill" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
@@ -240,9 +240,9 @@
                     <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource AccentDarkBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="已结账">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="当前">
                     <Setter TargetName="Pill" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
@@ -250,24 +250,24 @@
                     <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource AccentDarkBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="待转发">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="待确认">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="未路由">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="未知">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource WarningSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource WarningBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource WarningBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource WarningBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="未测试">
                     <Setter TargetName="Pill" Property="Background" Value="{DynamicResource PillNeutralBackgroundBrush}" />
@@ -275,14 +275,14 @@
                     <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource MutedBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="失败">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource DangerSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource DangerBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource DangerBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource DangerBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="连接失败">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource DangerSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource DangerBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource DangerBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource DangerBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusText}" Value="停用">
                     <Setter TargetName="Pill" Property="Background" Value="{DynamicResource PillNeutralBackgroundBrush}" />
@@ -317,14 +317,14 @@
             </Border>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding StatusKind}" Value="Online">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource SuccessSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource SuccessBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource SuccessBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding StatusKind}" Value="Failed">
-                    <Setter TargetName="Pill" Property="Background" Value="{StaticResource DangerSoftBrush}" />
-                    <Setter TargetName="PillDot" Property="Fill" Value="{StaticResource DangerBrush}" />
-                    <Setter TargetName="PillText" Property="Foreground" Value="{StaticResource DangerBrush}" />
+                    <Setter TargetName="Pill" Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+                    <Setter TargetName="PillDot" Property="Fill" Value="{DynamicResource DangerBrush}" />
+                    <Setter TargetName="PillText" Property="Foreground" Value="{DynamicResource DangerBrush}" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -466,9 +466,9 @@
                     <Style TargetType="Button" BasedOn="{StaticResource ParkedBillChipStyle}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                <Setter Property="Foreground" Value="White" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Background" Value="{DynamicResource AccentFillBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentFillForegroundBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillBrush}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -480,7 +480,7 @@
                                 <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                        <Setter Property="Foreground" Value="White" />
+                                        <Setter Property="Foreground" Value="{DynamicResource AccentFillForegroundBrush}" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -501,9 +501,9 @@
                     <Style TargetType="Button" BasedOn="{StaticResource SmallParkedBillChipStyle}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                <Setter Property="Foreground" Value="White" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Background" Value="{DynamicResource AccentFillBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentFillForegroundBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentFillBrush}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -590,7 +590,7 @@
             <MenuItem Header="打开所在目录" Click="OpenDocFolder_Click" />
             <MenuItem Header="移到其他账单" Click="MoveJob_Click" />
             <Separator Style="{StaticResource MenuSeparator}" />
-            <MenuItem Header="删除记录" Foreground="{StaticResource DangerBrush}" Click="DeleteJob_Click" />
+            <MenuItem Header="删除记录" Foreground="{DynamicResource DangerBrush}" Click="DeleteJob_Click" />
         </ContextMenu>
 
         <!-- 打印机列表右键菜单：编辑 / 测试连接 / 启用停用 / 删除 -->
@@ -600,7 +600,7 @@
             <MenuItem Header="测试连接" Click="TestPrinter_Click" />
             <MenuItem Header="{Binding EnableToggleText}" Click="TogglePrinterEnabled_Click" />
             <Separator Style="{StaticResource MenuSeparator}" />
-            <MenuItem Header="删除" Foreground="{StaticResource DangerBrush}" Click="DeletePrinter_Click" />
+            <MenuItem Header="删除" Foreground="{DynamicResource DangerBrush}" Click="DeletePrinter_Click" />
         </ContextMenu>
         <Style x:Key="AmountCellText" TargetType="TextBlock">
             <Setter Property="HorizontalAlignment" Value="Right" />
@@ -1348,11 +1348,11 @@
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding StatusText}" Value="失败">
-                                                            <Setter Property="Background" Value="{StaticResource DangerSoftBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
                                                             <Setter Property="BorderBrush" Value="{DynamicResource DangerBorderBrush}" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding StatusText}" Value="未知">
-                                                            <Setter Property="Background" Value="{StaticResource WarningSoftBrush}" />
+                                                            <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
                                                             <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
@@ -1797,7 +1797,7 @@
                                             <MenuItem Header="复制流水号" Click="FlowCopyNo_Click" />
                                             <Separator Style="{StaticResource MenuSeparator}" />
                                             <MenuItem Header="删除流水"
-                                                      Foreground="{StaticResource DangerBrush}"
+                                                      Foreground="{DynamicResource DangerBrush}"
                                                       Click="FlowDelete_Click" />
                                         </ContextMenu>
                                     </DataGrid.ContextMenu>
@@ -1828,7 +1828,7 @@
                                                                    ToolTip="{Binding BillText}" />
                                                         <TextBlock Text="{Binding BillMissingText}"
                                                                    FontSize="10"
-                                                                   Foreground="{StaticResource DangerBrush}"
+                                                                   Foreground="{DynamicResource DangerBrush}"
                                                                    Margin="0,1,0,0"
                                                                    Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}" />
                                                     </StackPanel>
@@ -2411,11 +2411,11 @@
                                         <TextBlock Text="打印服务" Style="{StaticResource SectionTitle}" />
                                         <TextBlock Text="本机 IPP 地址" Style="{StaticResource LabelText}" />
                                         <Border Style="{StaticResource InsetCard}" Margin="0,0,0,10">
-                                            <TextBlock x:Name="IppUriText" Text="—" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="IppUriText" Text="—" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource InkBrush}" />
                                         </Border>
                                         <TextBlock Text="数据目录" Style="{StaticResource LabelText}" />
                                         <Border Style="{StaticResource InsetCard}" Margin="0,0,0,14">
-                                            <TextBlock x:Name="DataDirText" Text="—" FontFamily="Consolas" FontSize="11.5" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="DataDirText" Text="—" FontFamily="Consolas" FontSize="11.5" TextWrapping="Wrap" Foreground="{DynamicResource InkBrush}" />
                                         </Border>
                                         <WrapPanel>
                                             <Button Content="打开数据目录" Click="OpenData_Click" Margin="0,0,8,8" />
@@ -2424,7 +2424,7 @@
                                             <Button Content="复制安装命令" Click="CopyInstall_Click" Margin="0,0,0,8" />
                                         </WrapPanel>
                                         <Border Style="{StaticResource InsetCard}" Margin="0,6,0,0">
-                                            <TextBlock x:Name="QueueStatusText" Text="队列状态：未检查" TextWrapping="Wrap" Foreground="{StaticResource WarningBrush}" FontSize="12" />
+                                            <TextBlock x:Name="QueueStatusText" Text="队列状态：未检查" TextWrapping="Wrap" Foreground="{DynamicResource WarningBrush}" FontSize="12" />
                                         </Border>
                                     </StackPanel>
                                 </Border>
@@ -2519,7 +2519,7 @@
                                                 <Image Source="pack://application:,,,/Assets/PrintPal.png" Stretch="Uniform" />
                                             </Border>
                                             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock x:Name="VersionText" Text="PrintPal" FontSize="14" FontWeight="SemiBold" />
+                                                <TextBlock x:Name="VersionText" Text="PrintPal" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" />
                                                 <TextBlock Text="本机虚拟打印 · 自动计价 · 台账归档"
                                                            Style="{StaticResource SubtleText}"
                                                            Margin="0,2,0,0" />

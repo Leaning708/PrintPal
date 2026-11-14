@@ -3664,22 +3664,13 @@ public partial class MainWindow : Window
 
         foreach (var theme in ThemeManager.Themes)
         {
-            var swatch = new Border
-            {
-                Width = 14,
-                Height = 14,
-                CornerRadius = new CornerRadius(4),
-                Background = new SolidColorBrush(theme.Colors["AccentBrush"]),
-                Margin = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
             var label = new TextBlock
             {
                 Text = theme.Name,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(swatch);
+            content.Children.Add(BuildThemePreview(theme.Colors));
             content.Children.Add(label);
 
             var button = new Button
@@ -3699,6 +3690,59 @@ public partial class MainWindow : Window
         UpdateThemeButtons();
     }
 
+    /// <summary>主题按钮预览：迷你界面结构（主题色侧边栏条 + 底色内容区 + 强调色圆点），浅色/深色一眼可辨。</summary>
+    private Border BuildThemePreview(IReadOnlyDictionary<string, System.Windows.Media.Color> colors)
+    {
+        colors.TryGetValue("PageBackgroundBrush", out var page);
+        colors.TryGetValue("SidebarTop", out var sidebar);
+        colors.TryGetValue("AccentBrush", out var accent);
+
+        var accentDot = new System.Windows.Shapes.Ellipse
+        {
+            Width = 7,
+            Height = 7,
+            Fill = new SolidColorBrush(accent),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 4, 3),
+        };
+        var contentHost = new Grid();
+        contentHost.Children.Add(accentDot);
+
+        var content = new Border
+        {
+            Background = new SolidColorBrush(page),
+            CornerRadius = new CornerRadius(0, 3, 3, 0),
+            Child = contentHost,
+        };
+
+        var sidebarStrip = new Border
+        {
+            Background = new SolidColorBrush(sidebar),
+            CornerRadius = new CornerRadius(3, 0, 0, 3),
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(sidebarStrip, 0);
+        Grid.SetColumn(content, 1);
+        grid.Children.Add(sidebarStrip);
+        grid.Children.Add(content);
+
+        return new Border
+        {
+            Width = 30,
+            Height = 20,
+            CornerRadius = new CornerRadius(4),
+            BorderThickness = new Thickness(1),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("LineStrongBrush"),
+            Child = grid,
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+    }
+
     private void BuildCustomThemeButtons()
     {
         if (CustomThemeButtonsPanel is null)
@@ -3711,26 +3755,13 @@ public partial class MainWindow : Window
 
         foreach (var theme in _themeLibrary.Themes)
         {
-            var accent = ThemeManager.BuildCustom(theme).Colors.TryGetValue("AccentBrush", out var color)
-                ? color
-                : Colors.Black;
-
-            var swatch = new Border
-            {
-                Width = 14,
-                Height = 14,
-                CornerRadius = new CornerRadius(4),
-                Background = new SolidColorBrush(accent),
-                Margin = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
             var label = new TextBlock
             {
                 Text = theme.Name,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(swatch);
+            content.Children.Add(BuildThemePreview(ThemeManager.BuildCustom(theme).Colors));
             content.Children.Add(label);
 
             var button = new Button

@@ -18,7 +18,7 @@ public sealed record ThemeDefinition(string Key, string Name, bool IsDark, IRead
 /// </summary>
 public static class ThemeManager
 {
-    public const string DefaultKey = "blue";
+    public const string DefaultKey = "light-blue";
 
     /// <summary>自定义配色的设置键（uiTheme 里存这个值，具体参数在 uiThemeCustom）。</summary>
     public const string CustomKey = "custom";
@@ -152,7 +152,7 @@ public static class ThemeManager
     public static IReadOnlyList<ThemeDefinition> Themes { get; } = new[]
     {
         // ---------------- 浅色 5 套 ----------------
-        Make("blue", "默认蓝", false, new()
+        Make("light-blue", "浅蓝", false, new()
         {
             ["AccentBrush"] = "#2563EB", ["AccentDarkBrush"] = "#1D4ED8", ["AccentSoftBrush"] = "#EAF1FF",
             ["PageBackgroundBrush"] = "#F3F6FB", ["HoverFillBrush"] = "#F5F8FD",
@@ -163,7 +163,7 @@ public static class ThemeManager
             ["SidebarSectionBrush"] = "#7C93BF", ["SidebarCountBrush"] = "#D5E2F8", ["SidebarCountTextBrush"] = "#1D4ED8",
             ["SidebarTextBrush"] = "#1E3A8A", ["MinimalTopBarBrush"] = "#2563EB", ["MinimalChipActiveBrush"] = "#2563EB",
         }),
-        Make("emerald", "墨绿", false, new()
+        Make("light-green", "浅绿", false, new()
         {
             ["AccentBrush"] = "#059669", ["AccentDarkBrush"] = "#047857", ["AccentSoftBrush"] = "#E7F7F0",
             ["PageBackgroundBrush"] = "#F2F8F5", ["HoverFillBrush"] = "#F3FAF7",
@@ -174,7 +174,7 @@ public static class ThemeManager
             ["SidebarSectionBrush"] = "#6FA88F", ["SidebarCountBrush"] = "#CFEBDD", ["SidebarCountTextBrush"] = "#047857",
             ["SidebarTextBrush"] = "#064E3B", ["MinimalTopBarBrush"] = "#059669", ["MinimalChipActiveBrush"] = "#059669",
         }),
-        Make("amber", "暖橙", false, new()
+        Make("light-orange", "浅橙", false, new()
         {
             ["AccentBrush"] = "#D97706", ["AccentDarkBrush"] = "#B45309", ["AccentSoftBrush"] = "#FEF3E2",
             ["PageBackgroundBrush"] = "#FBF6EF", ["HoverFillBrush"] = "#FDF8F1",
@@ -185,7 +185,7 @@ public static class ThemeManager
             ["SidebarSectionBrush"] = "#B08A4A", ["SidebarCountBrush"] = "#F3E2C4", ["SidebarCountTextBrush"] = "#B45309",
             ["SidebarTextBrush"] = "#7C2D12", ["MinimalTopBarBrush"] = "#D97706", ["MinimalChipActiveBrush"] = "#D97706",
         }),
-        Make("violet", "紫罗兰", false, new()
+        Make("light-purple", "浅紫", false, new()
         {
             ["AccentBrush"] = "#7C3AED", ["AccentDarkBrush"] = "#6D28D9", ["AccentSoftBrush"] = "#F1EBFF",
             ["PageBackgroundBrush"] = "#F7F4FC", ["HoverFillBrush"] = "#F9F6FE",
@@ -196,7 +196,7 @@ public static class ThemeManager
             ["SidebarSectionBrush"] = "#9A86C4", ["SidebarCountBrush"] = "#E6DCF6", ["SidebarCountTextBrush"] = "#6D28D9",
             ["SidebarTextBrush"] = "#4C1D95", ["MinimalTopBarBrush"] = "#7C3AED", ["MinimalChipActiveBrush"] = "#7C3AED",
         }),
-        Make("graphite", "石墨", false, new()
+        Make("light-gray", "浅灰", false, new()
         {
             ["AccentBrush"] = "#475569", ["AccentDarkBrush"] = "#334155", ["AccentSoftBrush"] = "#EEF1F5",
             ["PageBackgroundBrush"] = "#F4F6F8", ["HoverFillBrush"] = "#F7F9FA",
@@ -211,58 +211,58 @@ public static class ThemeManager
         // ---------------- 深色 5 套 ----------------
         Make("dark-blue", "深蓝", true, new()
         {
-            ["AccentBrush"] = "#60A5FA", ["AccentDarkBrush"] = "#3B82F6", ["AccentSoftBrush"] = "#1E3A5F",
-            ["PageBackgroundBrush"] = "#0B1220", ["CardBrush"] = "#131C2E", ["HoverFillBrush"] = "#182338",
-            ["LineBrush"] = "#1F2A3D", ["LineStrongBrush"] = "#2A3850",
-            ["InkBrush"] = "#E6EDF7", ["InkSecondaryBrush"] = "#C3CFE0", ["MutedBrush"] = "#8FA0B8", ["SoftMutedBrush"] = "#6B7C94",
-            ["SidebarTop"] = "#0F1A2E", ["SidebarBottom"] = "#0A1220", ["SidebarCardBrush"] = "#16233A", ["SidebarMutedBrush"] = "#8FA0B8",
-            ["SidebarNavTextBrush"] = "#A9BBD6", ["SidebarNavHoverBrush"] = "#1B2A44", ["SidebarNavActiveBrush"] = "#2563EB",
-            ["SidebarSectionBrush"] = "#6B7C94", ["SidebarCountBrush"] = "#1E3A5F", ["SidebarCountTextBrush"] = "#93C5FD",
-            ["SidebarTextBrush"] = "#E6EDF7", ["MinimalTopBarBrush"] = "#3B82F6", ["MinimalChipActiveBrush"] = "#2563EB",
+            ["AccentBrush"] = "#60A5FA", ["AccentDarkBrush"] = "#3B82F6", ["AccentSoftBrush"] = "#1E2A3F",
+            ["PageBackgroundBrush"] = "#0F1219", ["CardBrush"] = "#171C26", ["HoverFillBrush"] = "#1D2430",
+            ["LineBrush"] = "#222A38", ["LineStrongBrush"] = "#2E3849",
+            ["InkBrush"] = "#E7EAF0", ["InkSecondaryBrush"] = "#C4CAD6", ["MutedBrush"] = "#8D95A5", ["SoftMutedBrush"] = "#667082",
+            ["SidebarTop"] = "#141922", ["SidebarBottom"] = "#0F131B", ["SidebarCardBrush"] = "#1C222E", ["SidebarMutedBrush"] = "#8D95A5",
+            ["SidebarNavTextBrush"] = "#B6BDCB", ["SidebarNavHoverBrush"] = "#1F2634", ["SidebarNavActiveBrush"] = "#3B82F6",
+            ["SidebarSectionBrush"] = "#6E7687", ["SidebarCountBrush"] = "#232E45", ["SidebarCountTextBrush"] = "#93C5FD",
+            ["SidebarTextBrush"] = "#E7EAF0", ["MinimalTopBarBrush"] = "#3B82F6", ["MinimalChipActiveBrush"] = "#2563EB",
         }),
-        Make("dark-emerald", "深绿", true, new()
+        Make("dark-green", "深绿", true, new()
         {
-            ["AccentBrush"] = "#34D399", ["AccentDarkBrush"] = "#10B981", ["AccentSoftBrush"] = "#0F3D2E",
-            ["PageBackgroundBrush"] = "#0A1410", ["CardBrush"] = "#10201A", ["HoverFillBrush"] = "#14261F",
-            ["LineBrush"] = "#1B332A", ["LineStrongBrush"] = "#24463A",
-            ["InkBrush"] = "#E3F2EA", ["InkSecondaryBrush"] = "#B9D6C8", ["MutedBrush"] = "#86A99A", ["SoftMutedBrush"] = "#5F7D70",
-            ["SidebarTop"] = "#0C1F18", ["SidebarBottom"] = "#08140F", ["SidebarCardBrush"] = "#123026", ["SidebarMutedBrush"] = "#86A99A",
-            ["SidebarNavTextBrush"] = "#A9CDBC", ["SidebarNavHoverBrush"] = "#17362B", ["SidebarNavActiveBrush"] = "#059669",
-            ["SidebarSectionBrush"] = "#6E8F80", ["SidebarCountBrush"] = "#0F3D2E", ["SidebarCountTextBrush"] = "#6EE7B7",
-            ["SidebarTextBrush"] = "#E3F2EA", ["MinimalTopBarBrush"] = "#059669", ["MinimalChipActiveBrush"] = "#059669",
+            ["AccentBrush"] = "#34D399", ["AccentDarkBrush"] = "#10B981", ["AccentSoftBrush"] = "#182B25",
+            ["PageBackgroundBrush"] = "#0E1310", ["CardBrush"] = "#161C18", ["HoverFillBrush"] = "#1C2420",
+            ["LineBrush"] = "#212B24", ["LineStrongBrush"] = "#2C3830",
+            ["InkBrush"] = "#E6EDE9", ["InkSecondaryBrush"] = "#C2CFC8", ["MutedBrush"] = "#8A9C92", ["SoftMutedBrush"] = "#64746B",
+            ["SidebarTop"] = "#121814", ["SidebarBottom"] = "#0D120F", ["SidebarCardBrush"] = "#1B241E", ["SidebarMutedBrush"] = "#8A9C92",
+            ["SidebarNavTextBrush"] = "#B7C4BD", ["SidebarNavHoverBrush"] = "#1E2822", ["SidebarNavActiveBrush"] = "#10B981",
+            ["SidebarSectionBrush"] = "#6E7F76", ["SidebarCountBrush"] = "#1C2F27", ["SidebarCountTextBrush"] = "#6EE7B7",
+            ["SidebarTextBrush"] = "#E6EDE9", ["MinimalTopBarBrush"] = "#10B981", ["MinimalChipActiveBrush"] = "#059669",
         }),
-        Make("dark-amber", "深橙", true, new()
+        Make("dark-amber", "琥珀", true, new()
         {
-            ["AccentBrush"] = "#FBBF24", ["AccentDarkBrush"] = "#F59E0B", ["AccentSoftBrush"] = "#3D2E12",
-            ["PageBackgroundBrush"] = "#14100A", ["CardBrush"] = "#1E1810", ["HoverFillBrush"] = "#241D12",
-            ["LineBrush"] = "#332A1B", ["LineStrongBrush"] = "#463A26",
-            ["InkBrush"] = "#F5EDE0", ["InkSecondaryBrush"] = "#D9C9AE", ["MutedBrush"] = "#A99A82", ["SoftMutedBrush"] = "#7D7261",
-            ["SidebarTop"] = "#1F1810", ["SidebarBottom"] = "#140F09", ["SidebarCardBrush"] = "#2A2115", ["SidebarMutedBrush"] = "#A99A82",
-            ["SidebarNavTextBrush"] = "#D9C9AE", ["SidebarNavHoverBrush"] = "#2E2416", ["SidebarNavActiveBrush"] = "#D97706",
-            ["SidebarSectionBrush"] = "#8A7A62", ["SidebarCountBrush"] = "#3D2E12", ["SidebarCountTextBrush"] = "#FCD34D",
-            ["SidebarTextBrush"] = "#F5EDE0", ["MinimalTopBarBrush"] = "#D97706", ["MinimalChipActiveBrush"] = "#D97706",
+            ["AccentBrush"] = "#FBBF24", ["AccentDarkBrush"] = "#F59E0B", ["AccentSoftBrush"] = "#2E2A20",
+            ["PageBackgroundBrush"] = "#121110", ["CardBrush"] = "#1B1917", ["HoverFillBrush"] = "#211F1C",
+            ["LineBrush"] = "#2A2723", ["LineStrongBrush"] = "#38342E",
+            ["InkBrush"] = "#EFEAE2", ["InkSecondaryBrush"] = "#D0C9BC", ["MutedBrush"] = "#A29B8C", ["SoftMutedBrush"] = "#767061",
+            ["SidebarTop"] = "#1A1815", ["SidebarBottom"] = "#12100E", ["SidebarCardBrush"] = "#242019", ["SidebarMutedBrush"] = "#A29B8C",
+            ["SidebarNavTextBrush"] = "#D3CCC0", ["SidebarNavHoverBrush"] = "#262320", ["SidebarNavActiveBrush"] = "#D97706",
+            ["SidebarSectionBrush"] = "#7E7869", ["SidebarCountBrush"] = "#34302A", ["SidebarCountTextBrush"] = "#FCD34D",
+            ["SidebarTextBrush"] = "#EFEAE2", ["MinimalTopBarBrush"] = "#D97706", ["MinimalChipActiveBrush"] = "#B45309",
         }),
-        Make("dark-violet", "深紫", true, new()
+        Make("dark-purple", "深紫", true, new()
         {
-            ["AccentBrush"] = "#A78BFA", ["AccentDarkBrush"] = "#8B5CF6", ["AccentSoftBrush"] = "#2E2350",
-            ["PageBackgroundBrush"] = "#0F0B18", ["CardBrush"] = "#171226", ["HoverFillBrush"] = "#1C1630",
-            ["LineBrush"] = "#2A2140", ["LineStrongBrush"] = "#3A2E56",
-            ["InkBrush"] = "#EDE8F8", ["InkSecondaryBrush"] = "#CFC4E8", ["MutedBrush"] = "#9C90B5", ["SoftMutedBrush"] = "#6F6488",
-            ["SidebarTop"] = "#171128", ["SidebarBottom"] = "#0F0A1B", ["SidebarCardBrush"] = "#221A38", ["SidebarMutedBrush"] = "#9C90B5",
-            ["SidebarNavTextBrush"] = "#C9BDE6", ["SidebarNavHoverBrush"] = "#251C40", ["SidebarNavActiveBrush"] = "#7C3AED",
-            ["SidebarSectionBrush"] = "#7E7099", ["SidebarCountBrush"] = "#2E2350", ["SidebarCountTextBrush"] = "#C4B5FD",
-            ["SidebarTextBrush"] = "#EDE8F8", ["MinimalTopBarBrush"] = "#7C3AED", ["MinimalChipActiveBrush"] = "#7C3AED",
+            ["AccentBrush"] = "#A78BFA", ["AccentDarkBrush"] = "#8B5CF6", ["AccentSoftBrush"] = "#262230",
+            ["PageBackgroundBrush"] = "#121017", ["CardBrush"] = "#191622", ["HoverFillBrush"] = "#1F1C2A",
+            ["LineBrush"] = "#242030", ["LineStrongBrush"] = "#302B40",
+            ["InkBrush"] = "#EAE8F2", ["InkSecondaryBrush"] = "#C9C5D8", ["MutedBrush"] = "#9490A6", ["SoftMutedBrush"] = "#6B687C",
+            ["SidebarTop"] = "#17141F", ["SidebarBottom"] = "#100E16", ["SidebarCardBrush"] = "#201C2C", ["SidebarMutedBrush"] = "#9490A6",
+            ["SidebarNavTextBrush"] = "#C6C2D6", ["SidebarNavHoverBrush"] = "#242030", ["SidebarNavActiveBrush"] = "#8B5CF6",
+            ["SidebarSectionBrush"] = "#75708A", ["SidebarCountBrush"] = "#292537", ["SidebarCountTextBrush"] = "#C4B5FD",
+            ["SidebarTextBrush"] = "#EAE8F2", ["MinimalTopBarBrush"] = "#8B5CF6", ["MinimalChipActiveBrush"] = "#7C3AED",
         }),
-        Make("dark-graphite", "深灰", true, new()
+        Make("dark-charcoal", "炭黑", true, new()
         {
-            ["AccentBrush"] = "#94A3B8", ["AccentDarkBrush"] = "#64748B", ["AccentSoftBrush"] = "#1F2937",
-            ["PageBackgroundBrush"] = "#0B0F14", ["CardBrush"] = "#141A21", ["HoverFillBrush"] = "#1A222B",
-            ["LineBrush"] = "#232C36", ["LineStrongBrush"] = "#2F3A46",
-            ["InkBrush"] = "#E6EBF1", ["InkSecondaryBrush"] = "#C3CDD8", ["MutedBrush"] = "#8A97A6", ["SoftMutedBrush"] = "#64707E",
-            ["SidebarTop"] = "#121820", ["SidebarBottom"] = "#0B0F14", ["SidebarCardBrush"] = "#1B232D", ["SidebarMutedBrush"] = "#8A97A6",
-            ["SidebarNavTextBrush"] = "#B9C4D0", ["SidebarNavHoverBrush"] = "#1E2731", ["SidebarNavActiveBrush"] = "#475569",
-            ["SidebarSectionBrush"] = "#6B7785", ["SidebarCountBrush"] = "#1F2937", ["SidebarCountTextBrush"] = "#CBD5E1",
-            ["SidebarTextBrush"] = "#E6EBF1", ["MinimalTopBarBrush"] = "#475569", ["MinimalChipActiveBrush"] = "#475569",
+            ["AccentBrush"] = "#94A3B8", ["AccentDarkBrush"] = "#64748B", ["AccentSoftBrush"] = "#212630",
+            ["PageBackgroundBrush"] = "#101214", ["CardBrush"] = "#17191C", ["HoverFillBrush"] = "#1D2024",
+            ["LineBrush"] = "#23262B", ["LineStrongBrush"] = "#2F333A",
+            ["InkBrush"] = "#E9EAEC", ["InkSecondaryBrush"] = "#C6C9CE", ["MutedBrush"] = "#8F949C", ["SoftMutedBrush"] = "#666B74",
+            ["SidebarTop"] = "#15171A", ["SidebarBottom"] = "#0F1113", ["SidebarCardBrush"] = "#1D2024", ["SidebarMutedBrush"] = "#8F949C",
+            ["SidebarNavTextBrush"] = "#BAC0C8", ["SidebarNavHoverBrush"] = "#1F2329", ["SidebarNavActiveBrush"] = "#64748B",
+            ["SidebarSectionBrush"] = "#71767F", ["SidebarCountBrush"] = "#22262B", ["SidebarCountTextBrush"] = "#CBD5E1",
+            ["SidebarTextBrush"] = "#E9EAEC", ["MinimalTopBarBrush"] = "#475569", ["MinimalChipActiveBrush"] = "#475569",
         }),
     };
 
@@ -285,6 +285,7 @@ public static class ThemeManager
         }
 
         SetGradient("SidebarBrush", theme.Colors["SidebarTop"], theme.Colors["SidebarBottom"]);
+        ApplyFillBrushes(theme);
     }
 
     /// <summary>默认界面字体（与 Theme.xaml 里的 UiFontFamily 初始值保持一致）。</summary>
@@ -361,13 +362,55 @@ public static class ThemeManager
         colors["MinimalChipBorderBrush"] = Blend(colors["MinimalBackgroundBrush"], colors["MinimalTopBarBrush"], 0.24);
         colors["MinimalButtonBackgroundBrush"] = Blend(colors["MinimalBackgroundBrush"], colors["MinimalTopBarBrush"], 0.16);
 
-        // 主按钮文字：白/黑里选对比度更高的一个（深色主题里浅色主色不再出现"白字看不清"）
-        colors["AccentForegroundBrush"] = ContrastRatio(colors["AccentBrush"], Colors.White) >=
-                                          ContrastRatio(colors["AccentBrush"], Colors.Black)
-            ? Colors.White
-            : Colors.Black;
+        // 语义状态色（状态胶囊/提示）：浅色主题沿用浅底深字，深色主题改为暗底亮字。
+        // 软底由 CardBrush 与语义色混合派生，自动与每套主题的底色协调。
+        colors["SuccessBrush"] = isDark ? Hex("#34D399") : Hex("#0E9F6E");
+        colors["SuccessSoftBrush"] = Blend(colors["CardBrush"], colors["SuccessBrush"], isDark ? 0.14 : 0.12);
+        colors["WarningBrush"] = isDark ? Hex("#FCC84D") : Hex("#D97706");
+        colors["WarningSoftBrush"] = Blend(colors["CardBrush"], colors["WarningBrush"], isDark ? 0.14 : 0.12);
+        colors["DangerBrush"] = isDark ? Hex("#F87171") : Hex("#DC2626");
+        colors["DangerSoftBrush"] = Blend(colors["CardBrush"], colors["DangerBrush"], isDark ? 0.14 : 0.15);
+
+        // 主按钮文字：优先白字（彩色按钮的惯例，浅色主题黑字发闷），只有主色过亮
+        // （白字对比 < 2.8:1，如深色主题的浅琥珀/浅蓝主色）时才退回黑字保证可读。
+        colors["AccentForegroundBrush"] = PickForegroundOn(colors["AccentBrush"]);
 
         return new ThemeDefinition(key, name, isDark, colors);
+    }
+
+    /// <summary>背景上的主文字颜色：优先白字（对比 ≥ 2.8:1），过亮的背景退回黑字。</summary>
+    private static Color PickForegroundOn(Color background) =>
+        ContrastRatio(background, Colors.White) >= 2.8 ? Colors.White : Colors.Black;
+
+    /// <summary>
+    /// 填充类强调元素（主按钮 / 当前账单 chip）的底色与文字：浅色主题用主色 + 自动对比文字；
+    /// 深色主题改用侧边栏选中态同源的深一档主色 + 侧边栏文字色，避免浅色主色大面积填充刺眼。
+    /// </summary>
+    private static void ApplyFillBrushes(ThemeDefinition theme)
+    {
+        if (Application.Current is null || !theme.Colors.TryGetValue("AccentBrush", out var accent))
+        {
+            return;
+        }
+
+        var fill = theme.IsDark && theme.Colors.TryGetValue("SidebarNavActiveBrush", out var navActive)
+            ? navActive
+            : accent;
+        SetBrush("AccentFillBrush", fill);
+
+        Color foreground;
+        if (theme.IsDark)
+        {
+            foreground = theme.Colors.TryGetValue("SidebarTextBrush", out var sidebarText)
+                ? sidebarText
+                : Colors.White;
+        }
+        else
+        {
+            foreground = PickForegroundOn(fill);
+        }
+
+        SetBrush("AccentFillForegroundBrush", foreground);
     }
 
     /// <summary>按比例把 <paramref name="to"/> 混入 <paramref name="from"/>（0 = 全 from，1 = 全 to）。</summary>
