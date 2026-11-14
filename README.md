@@ -82,7 +82,7 @@ dotnet build PrintPal.sln -c Debug
 dotnet test PrintPal.sln -c Debug
 ```
 
-当前：**121 个测试全部通过**（Core 57 / IPP 12 / Capture 10 / Storage 28 / Integration 14）。
+当前：**173 个测试全部通过**（Core 105 / IPP 12 / Capture 10 / Storage 31 / Integration 15）。
 
 ### 开发约定：测试后保留现场（不要关闭 APP）
 
@@ -274,7 +274,7 @@ dotnet build .\packaging\PrintPal.Msi\PrintPal.Msi.wixproj -c Release   # 等价
 - **2026-10-29 UI 重构**：左侧导航、账单/金额条、右侧任务详情、统一主题组件、
   无边框窗口、任务/账单选中与滚动位置保持；详见 [ui.md](docs/ui.md)；
 - 本地快速验证（不构建 MSI）见 [本地测试流程](docs/manual-test-1.0.1.md) 的更新版本；
-- 自动化测试当前 **121**（Core 57 / IPP 12 / Capture 10 / Storage 28 / Integration 14）。
+- 自动化测试当前 **173**（Core 105 / IPP 12 / Capture 10 / Storage 31 / Integration 15）。
 
 清理：
 

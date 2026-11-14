@@ -11,7 +11,7 @@
 
     <!-- 开发阶段的 dev 包内部 ProductVersion 都是同一个基线 x.y.z，
        允许同版本升级，才能把上一个 dev 包装机替换掉。 -->
-  <MajorUpgrade DowngradeErrorMessage="A newer version of PrintPal is already installed." Schedule="afterInstallValidate" />
+  <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of PrintPal is already installed." Schedule="afterInstallValidate" />
     <MediaTemplate EmbedCab="yes" />
 
     <Icon Id="PrintPalIcon" SourceFile="$(var.AppSource)\PrintPal.App.exe" />

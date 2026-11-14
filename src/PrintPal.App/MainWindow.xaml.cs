@@ -45,6 +45,8 @@ public partial class MainWindow : Window
     private string? _currentBillFlowNo;
     private IReadOnlyList<DailyPrintStat> _dailyStats = Array.Empty<DailyPrintStat>();
     private bool _suppressStatsRange;
+    private bool _suppressHistoryRange;
+    private bool _suppressFlowRange;
     private StatsChartMode _chartMode = StatsChartMode.Trend;
     private readonly List<(System.Windows.Point Point, DailyPrintStat Stat, double Value)> _chartPoints = new();
     private Border? _chartHoverBorder;
@@ -177,7 +179,6 @@ public partial class MainWindow : Window
         FlowsGrid.ItemsSource = _flowRows;
         DailyStatsGrid.ItemsSource = _dailyStatRows;
         DimensionStatsGrid.ItemsSource = _dimensionStatRows;
-        HourBars.ItemsSource = _hourBarRows;
         FullParkedBills.ItemsSource = _openBillChips;
         CompactParkedBills.ItemsSource = _openBillChips;
         MinimalParkedBills.ItemsSource = _openBillChips;
@@ -707,7 +708,8 @@ public partial class MainWindow : Window
         {
             // 旧版服务/安装包写入的任务没有流水，刷新前先补齐，保证「每条任务都有流水」。
             await _agent.Database.EnsureFlowsAsync();
-            _allFlows = await _agent.Database.GetFlowsAsync(limit: 1000);
+            var (from, to) = GetFlowRange();
+            _allFlows = await _agent.Database.GetFlowsAsync(limit: 1000, from: from, to: to);
             ApplyFlowFilter(selectId);
         }
         catch (Exception ex)
@@ -930,6 +932,90 @@ public partial class MainWindow : Window
             _flowPage = 1;
             ApplyFlowFilter();
         }
+    }
+
+    private void FlowFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+
+        var custom = FlowRangeCombo.SelectedIndex == 4;
+        FlowCustomRangePanel.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+
+        if (custom)
+        {
+            // 首次切到自定义时给一个默认区间（近 7 天），与历史结账一致。
+            _suppressFlowRange = true;
+            try
+            {
+                FlowStartPicker.SelectedDate ??= DateTime.Today.AddDays(-6);
+                FlowEndPicker.SelectedDate ??= DateTime.Today;
+            }
+            finally
+            {
+                _suppressFlowRange = false;
+            }
+        }
+
+        _flowPage = 1;
+        _ = LoadFlowsAsync();
+    }
+
+    private async void FlowStartPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressFlowRange || FlowStartPicker.SelectedDate is not DateTime start)
+        {
+            return;
+        }
+
+        _suppressFlowRange = true;
+        try
+        {
+            if (FlowEndPicker.SelectedDate is not DateTime end || end < start)
+            {
+                FlowEndPicker.SelectedDate = start;
+            }
+
+            // 选完开始日期自动弹出结束日期选择，与历史结账/统计页一致，少点一次。
+            FlowEndPicker.IsDropDownOpen = true;
+        }
+        finally
+        {
+            _suppressFlowRange = false;
+        }
+
+        _flowPage = 1;
+        await LoadFlowsAsync();
+    }
+
+    private async void FlowEndPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressFlowRange
+            || FlowStartPicker.SelectedDate is not DateTime start
+            || FlowEndPicker.SelectedDate is not DateTime end)
+        {
+            return;
+        }
+
+        if (end < start)
+        {
+            _suppressFlowRange = true;
+            try
+            {
+                FlowEndPicker.SelectedDate = start;
+            }
+            finally
+            {
+                _suppressFlowRange = false;
+            }
+
+            return;
+        }
+
+        _flowPage = 1;
+        await LoadFlowsAsync();
     }
 
     private async void FlowsRefresh_Click(object sender, RoutedEventArgs e) => await LoadFlowsAsync();
@@ -1220,11 +1306,6 @@ public partial class MainWindow : Window
                 (start, end) = (end, start);
             }
 
-            if ((end - start).TotalDays > 366)
-            {
-                end = start.AddDays(366);
-            }
-
             return (new DateTimeOffset(start, offset), new DateTimeOffset(end.AddDays(1), offset));
         }
 
@@ -1329,22 +1410,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if ((end - start).TotalDays > 366)
-        {
-            _suppressStatsRange = true;
-            try
-            {
-                StatsEndPicker.SelectedDate = start.AddDays(366);
-            }
-            finally
-            {
-                _suppressStatsRange = false;
-            }
-
-            StatusBarText.Text = "自定义时间段最长一年，已自动截断到 366 天";
-            return;
-        }
-
         if (_initialized && StatsPage.Visibility == Visibility.Visible)
         {
             _ = LoadStatsAsync();
@@ -1372,28 +1437,39 @@ public partial class MainWindow : Window
         }
 
         var trend = _chartMode == StatsChartMode.Trend;
-        StatsChartHost.Visibility = trend ? Visibility.Visible : Visibility.Collapsed;
-        HourBars.Visibility = trend ? Visibility.Collapsed : Visibility.Visible;
+        StatsChartHost.Visibility = Visibility.Visible;
         StatsMetricCombo.Visibility = trend ? Visibility.Visible : Visibility.Collapsed;
 
-        var accentSoft = (System.Windows.Media.Brush)FindResource("AccentSoftBrush");
-        var accentDark = (System.Windows.Media.Brush)FindResource("AccentDarkBrush");
-        var muted = (System.Windows.Media.Brush)FindResource("MutedBrush");
-        var transparent = System.Windows.Media.Brushes.Transparent;
+        // 用 DynamicResource 引用而不是直接取 Brush 实例：切换主题时按钮颜色自动跟随，
+        // 不会停留在启动时的旧主题（之前趋势按钮文字一直是蓝色就是这个原因）。
+        ApplyChartModeButtonColors(StatsChartTrendButton, trend);
+        ApplyChartModeButtonColors(StatsChartHourButton, !trend);
 
-        StatsChartTrendButton.Background = trend ? accentSoft : transparent;
-        StatsChartTrendButton.Foreground = trend ? accentDark : muted;
-        StatsChartHourButton.Background = trend ? transparent : accentSoft;
-        StatsChartHourButton.Foreground = trend ? muted : accentDark;
+        DrawStatsChart();
+    }
 
-        if (trend)
+    private static void ApplyChartModeButtonColors(System.Windows.Controls.Button button, bool active)
+    {
+        if (active)
         {
-            DrawStatsChart();
+            button.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "AccentSoftBrush");
+            button.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "AccentBrush");
+        }
+        else
+        {
+            button.Background = System.Windows.Media.Brushes.Transparent;
+            button.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "MutedBrush");
         }
     }
 
     private void StatsChartHost_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        if (_chartMode == StatsChartMode.Hour)
+        {
+            HandleHourChartHover(e);
+            return;
+        }
+
         if (_chartMode != StatsChartMode.Trend
             || _chartPoints.Count == 0
             || _chartHoverBorder is null
@@ -1432,6 +1508,67 @@ public partial class MainWindow : Window
         Canvas.SetTop(_chartHoverBorder, Math.Max(0, nearest.Point.Y - 34));
     }
 
+    /// <summary>时段分布悬停：吸附到最近的小时槽，显示该小时的任务数与金额。</summary>
+    private void HandleHourChartHover(System.Windows.Input.MouseEventArgs e)
+    {
+        if (_chartHoverBorder is null || _chartHoverText is null || _chartGuideLine is null)
+        {
+            return;
+        }
+
+        var width = StatsChartHost.ActualWidth;
+        var height = StatsChartHost.ActualHeight;
+        const double left = 40;
+        const double right = 10;
+        const double top = 10;
+        const double bottom = 26;
+        var plotWidth = width - left - right;
+        var plotHeight = height - top - bottom;
+        if (plotWidth <= 0 || plotHeight <= 0)
+        {
+            return;
+        }
+
+        var position = e.GetPosition(StatsChartHost);
+        if (position.X < left || position.X > left + plotWidth)
+        {
+            _chartHoverBorder.Visibility = Visibility.Collapsed;
+            _chartGuideLine.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var slot = plotWidth / 24.0;
+        var hour = (int)Math.Floor((position.X - left) / slot);
+        if (hour is < 0 or > 23)
+        {
+            return;
+        }
+
+        var row = _hourBarRows.FirstOrDefault(item => item.Stat.Hour == hour);
+        if (row is null)
+        {
+            _chartHoverBorder.Visibility = Visibility.Collapsed;
+            _chartGuideLine.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var center = left + slot * hour + slot / 2;
+        _chartGuideLine.X1 = center;
+        _chartGuideLine.X2 = center;
+        _chartGuideLine.Y1 = top;
+        _chartGuideLine.Y2 = top + plotHeight;
+        _chartGuideLine.Visibility = Visibility.Visible;
+
+        _chartHoverText.Text =
+            $"{hour:00}:00 · {row.Stat.JobCount} 单 · {Money.FormatCents(row.Stat.AmountCents)}";
+        _chartHoverBorder.Visibility = Visibility.Visible;
+        _chartHoverBorder.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        var bubbleWidth = _chartHoverBorder.DesiredSize.Width;
+        var bubbleLeft = Math.Min(Math.Max(0, center + 10), Math.Max(0, width - bubbleWidth - 4));
+        Canvas.SetLeft(_chartHoverBorder, bubbleLeft);
+        Canvas.SetTop(_chartHoverBorder, Math.Max(0, Math.Min(position.Y - 34, height - 42)));
+    }
+
     private void StatsChartHost_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (_chartHoverBorder is not null)
@@ -1463,10 +1600,20 @@ public partial class MainWindow : Window
 
         var width = StatsChartHost.ActualWidth;
         var height = StatsChartHost.ActualHeight;
-        var series = BuildChartSeries(_dailyStats);
+        if (width < 80 || height < 80)
+        {
+            return;
+        }
 
+        if (_chartMode == StatsChartMode.Hour)
+        {
+            DrawHourChart(width, height);
+            return;
+        }
+
+        var series = BuildChartSeries(_dailyStats);
         StatsChartEmptyText.Visibility = series.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (series.Count == 0 || width < 80 || height < 80)
+        if (series.Count == 0)
         {
             return;
         }
@@ -1475,10 +1622,11 @@ public partial class MainWindow : Window
         var values = series.Select(item => MetricValue(item, metric)).ToList();
 
         var max = Math.Max(1.0, values.Max());
-        const double left = 10;
-        const double right = 10;
+        // 左侧留出 y 轴文字宽度，避免折线起点压住刻度文字。
+        const double left = 48;
+        const double right = 12;
         const double top = 12;
-        const double bottom = 24;
+        const double bottom = 26;
         var plotWidth = width - left - right;
         var plotHeight = height - top - bottom;
 
@@ -1506,9 +1654,11 @@ public partial class MainWindow : Window
                 Text = FormatChartValue(max * (2 - i) / 2.0, metric),
                 FontSize = 9.5,
                 Foreground = soft,
+                Width = 38,
+                TextAlignment = TextAlignment.Right,
             };
             Canvas.SetLeft(label, 2);
-            Canvas.SetTop(label, y - 12);
+            Canvas.SetTop(label, y - 7);
             StatsChartCanvas.Children.Add(label);
         }
 
@@ -1556,7 +1706,7 @@ public partial class MainWindow : Window
                 FontSize = 9.5,
                 Foreground = muted,
             };
-            Canvas.SetLeft(label, Math.Max(0, Math.Min(width - 34, points[i].X - 16)));
+            Canvas.SetLeft(label, Math.Max(2, Math.Min(width - 34, points[i].X - 16)));
             Canvas.SetTop(label, top + plotHeight + 6);
             StatsChartCanvas.Children.Add(label);
         }
@@ -1587,6 +1737,167 @@ public partial class MainWindow : Window
             IsHitTestVisible = false,
         };
         StatsChartCanvas.Children.Add(_chartHoverBorder);
+    }
+
+    /// <summary>时段分布：24 小时等宽柱状图，铺满整张卡片并随窗口/拖动条伸缩。</summary>
+    private void DrawHourChart(double width, double height)
+    {
+        StatsChartEmptyText.Visibility = _hourBarRows.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (_hourBarRows.Count == 0)
+        {
+            return;
+        }
+
+        var counts = new int[24];
+        var rows = new HourBarRow?[24];
+        foreach (var row in _hourBarRows)
+        {
+            var hour = row.Stat.Hour;
+            if (hour is >= 0 and < 24)
+            {
+                counts[hour] = row.Stat.JobCount;
+                rows[hour] = row;
+            }
+        }
+
+        var max = Math.Max(1, counts.Max());
+        const double left = 40;
+        const double right = 10;
+        const double top = 10;
+        const double bottom = 26;
+        var plotWidth = width - left - right;
+        var plotHeight = height - top - bottom;
+        if (plotWidth <= 0 || plotHeight <= 0)
+        {
+            return;
+        }
+
+        var accent = (System.Windows.Media.Brush)FindResource("AccentBrush");
+        var accentSoft = (System.Windows.Media.Brush)FindResource("AccentSoftBrush");
+        var lineBrush = (System.Windows.Media.Brush)FindResource("LineBrush");
+        var muted = (System.Windows.Media.Brush)FindResource("MutedBrush");
+        var soft = (System.Windows.Media.Brush)FindResource("SoftMutedBrush");
+
+        for (var i = 0; i <= 2; i++)
+        {
+            var y = top + plotHeight * i / 2.0;
+            StatsChartCanvas.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = left,
+                Y1 = y,
+                X2 = left + plotWidth,
+                Y2 = y,
+                Stroke = lineBrush,
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection { 3, 3 },
+            });
+
+            var label = new TextBlock
+            {
+                Text = FormatChartValue(max * (2 - i) / 2.0, 2),
+                FontSize = 9.5,
+                Foreground = soft,
+                Width = 32,
+                TextAlignment = TextAlignment.Right,
+            };
+            Canvas.SetLeft(label, left - 40);
+            Canvas.SetTop(label, y - 7);
+            StatsChartCanvas.Children.Add(label);
+        }
+
+        var slot = plotWidth / 24.0;
+        var barWidth = Math.Max(4, slot * 0.56);
+        for (var hour = 0; hour < 24; hour++)
+        {
+            if (counts[hour] <= 0)
+            {
+                continue;
+            }
+
+            var barHeight = Math.Max(2, plotHeight * counts[hour] / max);
+            var bar = new System.Windows.Shapes.Rectangle
+            {
+                Width = barWidth,
+                Height = barHeight,
+                RadiusX = 3,
+                RadiusY = 3,
+                Fill = counts[hour] == max ? accent : accentSoft,
+            };
+            Canvas.SetLeft(bar, left + slot * hour + (slot - barWidth) / 2);
+            Canvas.SetTop(bar, top + plotHeight - barHeight);
+            StatsChartCanvas.Children.Add(bar);
+        }
+
+        StatsChartCanvas.Children.Add(new System.Windows.Shapes.Line
+        {
+            X1 = left,
+            Y1 = top + plotHeight,
+            X2 = left + plotWidth,
+            Y2 = top + plotHeight,
+            Stroke = lineBrush,
+            StrokeThickness = 1,
+        });
+
+        var labelStep = plotWidth < 520 ? 3 : 2;
+        for (var hour = 0; hour < 24; hour += labelStep)
+        {
+            var label = new TextBlock
+            {
+                Text = hour.ToString("00"),
+                FontSize = 9.5,
+                Foreground = muted,
+                Width = 24,
+                TextAlignment = TextAlignment.Center,
+            };
+            Canvas.SetLeft(label, left + slot * hour + (slot - 24) / 2);
+            Canvas.SetTop(label, top + plotHeight + 6);
+            StatsChartCanvas.Children.Add(label);
+        }
+
+        EnsureChartHoverElements();
+    }
+
+    /// <summary>懒创建悬停参考线与数值气泡（趋势/时段分布共用）。</summary>
+    private void EnsureChartHoverElements()
+    {
+        if (_chartGuideLine is null)
+        {
+            _chartGuideLine = new System.Windows.Shapes.Line
+            {
+                Stroke = (System.Windows.Media.Brush)FindResource("AccentBrush"),
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection { 2, 2 },
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false,
+            };
+            StatsChartCanvas.Children.Add(_chartGuideLine);
+        }
+
+        if (_chartHoverText is null)
+        {
+            _chartHoverText = new TextBlock
+            {
+                FontSize = 11,
+                Foreground = System.Windows.Media.Brushes.White,
+            };
+        }
+
+        if (_chartHoverBorder is null)
+        {
+            _chartHoverBorder = new Border
+            {
+                Background = (System.Windows.Media.Brush)FindResource("InkBrush"),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 4, 8, 4),
+                Child = _chartHoverText,
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false,
+            };
+            StatsChartCanvas.Children.Add(_chartHoverBorder);
+        }
     }
 
     private static string FormatChartValue(double value, int metric) => metric == 0
@@ -1953,10 +2264,44 @@ public partial class MainWindow : Window
 
     private (DateTimeOffset? From, DateTimeOffset? To) GetHistoryRange()
     {
+        return ComputeRange(
+            HistoryRangeCombo.SelectedIndex,
+            HistoryStartPicker?.SelectedDate,
+            HistoryEndPicker?.SelectedDate);
+    }
+
+    private (DateTimeOffset? From, DateTimeOffset? To) GetFlowRange()
+    {
+        return ComputeRange(
+            FlowRangeCombo?.SelectedIndex,
+            FlowStartPicker?.SelectedDate,
+            FlowEndPicker?.SelectedDate);
+    }
+
+    /// <summary>时间筛选的共用日期数学：0=全部、1=今天、2=近 7 天、3=近 30 天、4=自定义（半开区间）。</summary>
+    private static (DateTimeOffset? From, DateTimeOffset? To) ComputeRange(
+        int? selectedIndex, DateTime? startSel, DateTime? endSel)
+    {
         var now = DateTimeOffset.Now;
+        var today = DateTime.Today;
+        var offset = TimeZoneInfo.Local.GetUtcOffset(today);
+        var selected = selectedIndex ?? 0;
+
+        if (selected == 4)
+        {
+            var start = (startSel ?? today.AddDays(-6)).Date;
+            var end = (endSel ?? today).Date;
+            if (end < start)
+            {
+                (start, end) = (end, start);
+            }
+
+            return (new DateTimeOffset(start, offset), new DateTimeOffset(end.AddDays(1), offset));
+        }
+
         var todayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
 
-        return HistoryRangeCombo.SelectedIndex switch
+        return selected switch
         {
             1 => (todayStart, null),
             2 => (todayStart.AddDays(-6), null),
@@ -2010,7 +2355,7 @@ public partial class MainWindow : Window
         }
 
         return bill.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-               (bill.Note?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+               (bill.BillFlowNo?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
     }
 
     private void UpdateHistoryDetailsPanel()
@@ -2569,7 +2914,87 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (HistoryCustomRangePanel is not null)
+        {
+            var custom = HistoryRangeCombo.SelectedIndex == 4;
+            HistoryCustomRangePanel.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+
+            if (custom)
+            {
+                // 首次切到自定义时给一个默认区间（近 7 天）。
+                _suppressHistoryRange = true;
+                try
+                {
+                    HistoryStartPicker.SelectedDate ??= DateTime.Today.AddDays(-6);
+                    HistoryEndPicker.SelectedDate ??= DateTime.Today;
+                }
+                finally
+                {
+                    _suppressHistoryRange = false;
+                }
+            }
+        }
+
         await ReloadAsync();
+    }
+
+    private async void HistoryStartPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressHistoryRange || HistoryStartPicker.SelectedDate is not DateTime start)
+        {
+            return;
+        }
+
+        _suppressHistoryRange = true;
+        try
+        {
+            if (HistoryEndPicker.SelectedDate is not DateTime end || end < start)
+            {
+                HistoryEndPicker.SelectedDate = start;
+            }
+
+            // 选完开始日期自动弹出结束日期选择，与统计页一致，少点一次。
+            HistoryEndPicker.IsDropDownOpen = true;
+        }
+        finally
+        {
+            _suppressHistoryRange = false;
+        }
+
+        if (_initialized)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    private async void HistoryEndPicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressHistoryRange
+            || HistoryStartPicker.SelectedDate is not DateTime start
+            || HistoryEndPicker.SelectedDate is not DateTime end)
+        {
+            return;
+        }
+
+        if (end < start)
+        {
+            _suppressHistoryRange = true;
+            try
+            {
+                HistoryEndPicker.SelectedDate = start;
+            }
+            finally
+            {
+                _suppressHistoryRange = false;
+            }
+
+            return;
+        }
+
+        if (_initialized)
+        {
+            await ReloadAsync();
+        }
     }
 
     private void HistorySearch_TextChanged(object sender, TextChangedEventArgs e)
@@ -3404,6 +3829,13 @@ public partial class MainWindow : Window
         UpdateModeSwitchButtons();
         ApplyThemeBackground();
         RefreshTrayMenuColors();
+
+        // 统计图工具栏的颜色是代码里直接赋值的 Brush，切主题后必须重新取一次，
+        // 否则会一直停留在启动时的旧主题颜色（典型：趋势按钮文字还是蓝色）。
+        if (StatsChartTrendButton is not null)
+        {
+            UpdateChartMode();
+        }
     }
 
     private async void Theme_Click(object sender, RoutedEventArgs e)

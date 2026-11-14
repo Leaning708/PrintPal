@@ -44,7 +44,7 @@ dotnet build PrintPal.sln -c Debug
 dotnet test PrintPal.sln -c Debug
 ```
 
-当前测试：Core 57 / Ipp 12 / Capture 10 / Storage 28 / Integration 14 = **121**（全部通过）。
+当前测试：Core 105 / Ipp 12 / Capture 10 / Storage 31 / Integration 15 = **173**（全部通过）。
 用 `scripts\test\Run-PrintPalTests.ps1 -Root <repo>` 可一次跑完并生成 `artifacts\test-report.md`。
 
 ---

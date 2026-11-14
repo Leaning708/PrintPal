@@ -277,6 +277,61 @@ public sealed class FlowTests
         }
     }
 
+    [Fact]
+    public async Task Flows_filter_by_time_range()
+    {
+        var directory = NewDirectory();
+        try
+        {
+            var db = await CreateAsync(directory);
+            var bill = await db.EnsureActiveBillAsync();
+            var ids = new List<Guid>();
+
+            for (var i = 0; i < 3; i++)
+            {
+                var documentName = $"range-{i}.pdf";
+                await db.SaveJobAsync(Job(bill, 100 + i, documentName));
+                var entry = (await db.GetFlowsAsync(kind: PrintFlowKind.Job))
+                    .Single(item => item.Flow.DocumentNameSnapshot == documentName);
+                ids.Add(entry.Flow.Id);
+            }
+
+            await SetFlowCreatedAtAsync(db, ids[0], DateTimeOffset.UtcNow.AddDays(-10));
+            await SetFlowCreatedAtAsync(db, ids[1], DateTimeOffset.UtcNow.AddDays(-2));
+            await SetFlowCreatedAtAsync(db, ids[2], DateTimeOffset.UtcNow.AddMinutes(-5));
+
+            // 半开区间 [from, to)：最近 3 天含 -2 天与 -5 分钟两条，-10 天那条被排除
+            var recent = await db.GetFlowsAsync(kind: PrintFlowKind.Job, from: DateTimeOffset.UtcNow.AddDays(-3));
+            Assert.Equal(2, recent.Count);
+            Assert.All(recent, entry => Assert.Contains(entry.Flow.Id, new[] { ids[1], ids[2] }));
+
+            // 上界排除：-5 分钟那条在 to 之后，不算在内
+            var bounded = await db.GetFlowsAsync(kind: PrintFlowKind.Job, to: DateTimeOffset.UtcNow.AddMinutes(-10));
+            Assert.Equal(2, bounded.Count);
+            Assert.All(bounded, entry => Assert.Contains(entry.Flow.Id, new[] { ids[0], ids[1] }));
+
+            var all = await db.GetFlowsAsync(kind: PrintFlowKind.Job);
+            Assert.Equal(3, all.Count);
+            Assert.Equal(ids[2], all[0].Flow.Id); // 最近在前
+        }
+        finally
+        {
+            Cleanup(directory);
+        }
+    }
+
+    private static async Task SetFlowCreatedAtAsync(PrintPalDatabase db, Guid flowId, DateTimeOffset createdAt)
+    {
+        await using var connection = new SqliteConnection($"Data Source={db.DatabasePath}");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE PrintFlows SET CreatedAtUtc = $value WHERE Id = $id;";
+        command.Parameters.AddWithValue("$value", createdAt.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("$id", flowId.ToString("D"));
+        await command.ExecuteNonQueryAsync();
+        SqliteConnection.ClearAllPools();
+    }
+
     private static void Cleanup(string directory)
     {
         SqliteConnection.ClearAllPools();

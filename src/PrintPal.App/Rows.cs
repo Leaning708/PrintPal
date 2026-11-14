@@ -88,6 +88,8 @@ public sealed class ClosedBillRow{
 
     public string BillName => Bill.Name;
 
+    public string FlowNoText => Bill.BillFlowNo ?? "";
+
     public int JobCount => Bill.JobCount;
 
     public int TotalPages => Bill.TotalPages;

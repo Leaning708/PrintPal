@@ -42,6 +42,9 @@ public sealed class Bill
 
     public long AmountCents { get; set; }
 
+    /// <summary>账单流水号（历史结账列表展示/搜索用，非 Bills 表字段，查询时补齐）。</summary>
+    public string? BillFlowNo { get; set; }
+
     public bool IsOpen => Status is BillStatus.Active or BillStatus.Parked;
 }
 

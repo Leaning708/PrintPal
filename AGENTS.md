@@ -119,6 +119,10 @@ dotnet test PrintPal.sln -c Debug
 | `printpal-msi` | 发布/MSI 安装升级修复卸载、队列重建；只读部署状态脚本 |
 | `printpal-troubleshoot` | 按打印链路分段排障 + 只读诊断证据包（`artifacts\diagnostics\`） |
 
+> 注：UI 改动的主题 token、间距/圆角尺度与"先验证机制再做样式 + 像素级验收"硬规则见
+> `docs\ui.md` 与 `docs\CHANGELOG.md`（2026-11-13 条目）；曾记录的 `printpal-ui-design` skill
+> 未实际入库，已从本表移除。
+
 维护约定：新增/修改 skill 时同步本表与 `docs\CHANGELOG.md`；skill 脚本保持 ASCII 输出、兼容
 PowerShell 5.1，并且默认**只读或以"不改变现状"的方式运行**（启动类脚本只启动、不停止）。
 

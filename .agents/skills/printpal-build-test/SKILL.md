@@ -1,7 +1,7 @@
 ---
 name: printpal-build-test
 description: 构建 PrintPal 方案并跑 Core/Ipp/Capture/Storage/Integration 测试，产出聚合报告与基线对比，覆盖编码、执行策略与 MSI 配置的坑。
-whenToUse: 修改 C# 代码需要回归、构建或测试失败要定位、或需要核对当前测试基线（121 通过）时使用。
+whenToUse: 修改 C# 代码需要回归、构建或测试失败要定位、或需要核对当前测试基线（173 通过）时使用。
 ---
 
 # PrintPal 构建与测试
@@ -64,7 +64,8 @@ dotnet test PrintPal.sln -c Debug
 
 ## 基线
 
-**121** 个测试全部通过：Core 57 / Ipp 12 / Capture 10 / Storage 28 / Integration 14。
+**173** 个测试全部通过：Core 105 / Ipp 12 / Capture 10 / Storage 31 / Integration 15。
+> 2026-11-14 流水时间范围过滤新增 Storage 测试 +1；2026-11-13 校正基线：数字从 121 漂移到 172（Core +48 / Storage +2 / Integration +1）。
 
 > 2026-11-02 修复了 `PrintPal.Storage.Tests.BillingTests` 的 5 个过期断言：提交 `bf0bd38` 把新账单
 > 默认名改成「散客」后测试仍断言「客户N」。现在断言改为「散客 + 序号」，README / runbook 的基线
@@ -98,7 +99,7 @@ dotnet test PrintPal.sln -c Debug
 
 ```text
 Build : Debug succeeded / failed
-Tests : 121 passed / 0 failed（报告 artifacts\test-report.md）
+Tests : 173 passed / 0 failed（报告 artifacts\test-report.md）
 保留现场: 未关闭 App / 服务 / FakePrinter
 ```
 

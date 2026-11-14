@@ -31,6 +31,8 @@ public sealed partial class PrintPalDatabase
         int limit = 500,
         string? search = null,
         PrintFlowKind? kind = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null,
         CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -41,6 +43,8 @@ public sealed partial class PrintPalDatabase
             LEFT JOIN Bills b ON b.Id = f.BillId
             WHERE f.IsDeleted = 0
               AND ($kind IS NULL OR f.Kind = $kind)
+              AND ($from IS NULL OR f.CreatedAtUtc >= $from)
+              AND ($to IS NULL OR f.CreatedAtUtc < $to)
               AND ($search IS NULL OR f.FlowNo LIKE $like
                    OR COALESCE(f.BillNameSnapshot, '') LIKE $like
                    OR COALESCE(f.DocumentNameSnapshot, '') LIKE $like
@@ -49,6 +53,8 @@ public sealed partial class PrintPalDatabase
             LIMIT $limit;
             """;
         Add(command, "$kind", kind?.ToString());
+        Add(command, "$from", ToIso(from));
+        Add(command, "$to", ToIso(to));
         Add(command, "$search", string.IsNullOrWhiteSpace(search) ? null : search.Trim());
         Add(command, "$like", string.IsNullOrWhiteSpace(search) ? null : "%" + search.Trim() + "%");
         Add(command, "$limit", Math.Max(1, limit));

@@ -879,11 +879,15 @@ public sealed partial class PrintPalDatabase
         await using var connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT * FROM Bills
-            WHERE Status = 'Closed'
-              AND ($from IS NULL OR ClosedAtUtc >= $from)
-              AND ($to IS NULL OR ClosedAtUtc < $to)
-            ORDER BY ClosedAtUtc DESC
+            SELECT b.*,
+                   (SELECT f.FlowNo FROM PrintFlows f
+                    WHERE f.BillId = b.Id AND f.Kind = 'Bill'
+                    ORDER BY f.CreatedAtUtc LIMIT 1) AS BillFlowNo
+            FROM Bills b
+            WHERE b.Status = 'Closed'
+              AND ($from IS NULL OR b.ClosedAtUtc >= $from)
+              AND ($to IS NULL OR b.ClosedAtUtc < $to)
+            ORDER BY b.ClosedAtUtc DESC
             LIMIT $limit;
             """;
         Add(command, "$from", ToIso(from));
@@ -894,7 +898,9 @@ public sealed partial class PrintPalDatabase
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            bills.Add(MapBill(reader));
+            var bill = MapBill(reader);
+            bill.BillFlowNo = GetNullableString(reader, "BillFlowNo");
+            bills.Add(bill);
         }
 
         return bills;
